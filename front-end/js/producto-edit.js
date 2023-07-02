@@ -6,7 +6,6 @@ createApp({
   data() {
     return {
       // Inicializa las variables
-      id: 0,
       nombre: "",
       imagen: "",
       stock: 0,
