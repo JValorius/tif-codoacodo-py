@@ -16,9 +16,11 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 # Importa la clase SQLAlchemy del módulo flask_sqlalchemy
 from flask_sqlalchemy import SQLAlchemy
-# Importa la clase Marshmallow del módulo flask_marshmallow
-from flask_marshmallow import Marshmallow, fields, ValidationError
-
+# Importa la clase func del módulo sqlalchemy.sql, que será necesario para realizar queries avanzadas (como AVERAGE)
+from sqlalchemy.sql import func
+# Importa las clases Marshmallow y fields del módulo flask_marshmallow
+from flask_marshmallow import Marshmallow, fields
+# Importa la clase enum, para poder declarar enumeradores
 import enum
 
 '''
@@ -79,12 +81,13 @@ class Clinica(db.Model):  # Clase para tabla de Clínicas
     financ = db.Column(db.Enum(FnEnum))
     direccion = db.Column(db.String(150))
     localidad = db.Column(db.String(50))
-    imagen = db.Column(db.String(100))
+    website = db.Column(db.String(100))
     telefono = db.Column(db.String(10))
+    imagen = db.Column(db.String(100))
     # ratings establece la relación con la clase Rating (1-a-muchos)
     ratings = db.relationship("Rating", backref='clinica', cascade="all, delete-orphan", lazy=True)
 
-    def __init__(self, nombre, financ, direccion, localidad, imagen, telefono):
+    def __init__(self, nombre, financ, direccion, localidad, website, telefono, imagen):
         """
         Constructor de la clase Clinica.
 
@@ -94,12 +97,14 @@ class Clinica(db.Model):  # Clase para tabla de Clínicas
             direccion (str): Domicilio de la clínica.
             localidad (str): Localidad de la clínica.
             telefono (str): Teléfono de la clínica.
+            website (str): Sitio web de la clínica.
             imagen (str): Nombre del archivo de imagen de la clínica
         """
         self.nombre = nombre
         self.financ = financ
         self.direccion = direccion
         self.localidad = localidad
+        self.website = website
         self.telefono = telefono
         self.imagen = imagen
 
@@ -153,17 +158,6 @@ with app.app_context():
 
 # DEFINICIONES DE SCHEMAS
 
-class UserSchema(ma.Schema):
-    """
-    Esquema de la clase User.
-
-    Este esquema define los campos que serán serializados/deserializados para la clase User.
-    """
-    class Meta:
-        id = fields.Int(dump_only=True)
-        handle = fields.Str(required=True)
-        exclude = ("pwd")
-
 class RatingSchema(ma.Schema):
     """
     Esquema de la clase Rating.
@@ -176,6 +170,18 @@ class RatingSchema(ma.Schema):
         puntaje = fields.Str(Required=True)
         id_clinica = fields.Int(Required=True)
         id_user = fields.Int(Required=True)
+
+class UserSchema(ma.Schema):
+    """
+    Esquema de la clase User.
+
+    Este esquema define los campos que serán serializados/deserializados para la clase User.
+    """
+    class Meta:
+        id = fields.Int(dump_only=True)
+        handle = fields.Str(required=True)
+        exclude = ("pwd")
+        ratings = fields.Nested(RatingSchema, many=True)
 
 class ClinicaSchema(ma.Schema):
     """
@@ -190,6 +196,7 @@ class ClinicaSchema(ma.Schema):
         direccion = fields.Int()
         localidad = fields.Int()
         telefono = fields.Str()
+        website = fields.Str()
         imagen = fields.Str()
         ratings = fields.Nested(RatingSchema, many=True)
 
@@ -217,12 +224,32 @@ def get_Clinicas():
     por_pag = request.args.get('por_pag', default=None, type=int)
     
     if por_pag is None:
-        # Obtiene todos los registros de la tabla clínicas si no se definió un parámetro de resultados por página
-        list_clinicas = Clinica.query.all() # Obtiene todos los registros de la tabla de clínicas
+        #  Obtiene todos los registros de la tabla clínicas si no se definió un parámetro de resultados por página
+        list_clinicas = db.session.execute(db.select(Clinica))
     else:
-        # Calculate offset based on page and per_page
-        offset = (pag - 1) * por_pag
-        list_clinicas = Clinica.query.offset(offset).limit(por_pag).all()
+        #  Si se definió un parámetro de resultados por página, pagina los resultados
+        list_clinicas = db.paginate(db.select(Clinica), pag, por_pag)
+
+    #  Realiza las queries necesarias para calcular el rating promedio
+    for clinica in list_clinicas:
+        #  Crea una lista de tipos de rating
+        ratings_promedio = {}
+        #  Para cada tipo de rating...
+        for tipo_rating in ['instalaciones', 'medicos', 'servicio']:
+            '''
+            Realiza la siguiente query:
+            #  SELECT AVG(ratings.valor)
+            #  FROM ratings
+            #  WHERE ratings.id_clinica = <clinica> AND ratings.tipo = <tipo_rating>
+            #  Devuelve un escalar igual al promedio de ratings del tipo <tipo_rating>
+            '''
+            rating_promedio = db.session.execute(db.select(func.avg(Rating.valor)).filter_by(id_clinica=clinica, tipo=tipo_rating).scalar())
+
+            #  Añade el promedio a la lista de ratings promedio de la clínica
+            ratings_promedio[tipo_rating] = rating_promedio
+        
+        #  Agrega el campo de ratings promedio a la clínica
+        clinica.ratings_promedio = ratings_promedio
 
     result = clinicas_schema.dump(list_clinicas)  # Serializa los registros en formato JSON
     return jsonify(result)  # Retorna el JSON de todos los registros de la tabla
@@ -238,12 +265,11 @@ def get_Users():
     por_pag = request.args.get('por_pag', default=None, type=int)
     
     if por_pag is None:
-        # Obtiene todos los registros de la tabla clínicas si no se definió un parámetro de resultados por página
-        list_users = User.query.all() # Obtiene todos los registros de la tabla de clínicas
+        #  Obtiene todos los registros de la tabla usuarios si no se definió un parámetro de resultados por página
+        list_users = db.session.execute(db.select(User))
     else:
-        # Calculate offset based on page and per_page
-        offset = (pag - 1) * por_pag
-        list_users = User.query.offset(offset).limit(por_pag).all()
+        #  Si se definió un parámetro de resultados por página, pagina los resultados
+        list_users = db.paginate(db.select(User), pag, por_pag)
 
     result = users_schema.dump(list_users)  # Serializa los registros en formato JSON
     return jsonify(result)  # Retorna el JSON de todos los registros de la tabla
@@ -259,35 +285,132 @@ def get_Ratings():
     por_pag = request.args.get('por_pag', default=None, type=int)
     
     if por_pag is None:
-        # Obtiene todos los registros de la tabla clínicas si no se definió un parámetro de resultados por página
-        list_ratings = Rating.query.all() # Obtiene todos los registros de la tabla de clínicas
+        #  Obtiene todos los registros de la tabla usuarios si no se definió un parámetro de resultados por página
+        list_ratings = db.session.execute(db.select(Rating))
     else:
-        # Calculate offset based on page and per_page
-        offset = (pag - 1) * por_pag
-        list_ratings = Rating.query.offset(offset).limit(por_pag).all()
+        #  Si se definió un parámetro de resultados por página, pagina los resultados
+        list_ratings = db.paginate(db.select(Rating), pag, por_pag)
+
+    for rating in list_ratings:
+        #  Busca el handle de usuario y el nombre de clínica para los ID correspondientes, y los agrega a los datos devueltos por el JSON
+        id_user = rating['id_user']
+        id_clinica = rating['id_clinica']
+        user_handle = db.session.execute(db.select(User.c.handle).filter_by(id_user=id_user))
+        nombre_clinica = db.session.execute(db.select(Clinica.c.nombre).filter_by(id_clinica=id_clinica))
+        
+        rating.user_handle = user_handle
+        rating.nombre_clinica = nombre_clinica
+
 
     result = ratings_schema.dump(list_ratings)  # Serializa los registros en formato JSON
     return jsonify(result)  # Retorna el JSON de todos los registros de la tabla
 
+"""
+Endpoints para cargar elementos en masa en la base de datos (por ejemplo, cargando un archivo JSON desde el FrontEnd)
+
+Lee los datos proporcionados en formato JSON por el cliente y crea nuevos registros en la base de datos.
+Retorna un JSON con la lista de registros actualizada.
+
+Para esta función aplico métodos más concisos que en las funciones "create_<elemento>", que utilizan request.json para explicitar
+los parámetros a recibir.
+"""
+@app.route("/clinicas", methods=["POST"])
+def create_Clinicas():
+    #  Recupera el JSON del request (si existe)
+    json_data = request.get_json()
+
+    #  Devuelve mensaje de advertencia en caso de no haber podido recuperar nada
+    if not json_data:
+        return {"message": "No se ha provisto ningún dato para ingresar"}, 400
+
+    #  Crea un array de clínicas con los elementos del JSON
+    clinicas = json_data.get('clinicas', [])
+
+    for clinica in clinicas:
+        #  Remueve el ID, si existe, para evitar conflictos
+        clinica.pop(id, None) 
+
+        nombre = clinica['nombre']
+        direccion = direccion['direccion']
+        '''
+        Realiza la siguiente query:
+        #  SELECT *
+        #  FROM clinicas
+        #  WHERE clinicas.nombre = '<nombre>' AND clinicas.direccion = '<direccion>'
+        #  LIMIT 1
+        #  Devuelve UN registro con las condiciones especificadas, si existe.
+        '''
+        clinica_duplicada = db.session.execute(db.select(Clinica).filter_by(nombre=nombre, direccion=direccion).first())
+        #  Si existe el registro, saltear el paso de añadirlo a la carga de la DB
+        if clinica_duplicada:
+            continue
+
+        new_clinica = Clinica(**clinica)
+        db.session.add(new_clinica)
+    
+    db.session.add_all(clinicas)  # Agrega la lista de clinicas a la sesión de la base de datos
+    db.session.commit()  # Guarda los cambios en la base de datos
+    return clinicas_schema.jsonify(clinicas)  # Retorna el JSON de la lista de clínicas actualizada
+
+@app.route("/ratings", methods=["POST"])
+def create_Ratings():
+    #  Recupera el JSON del request (si existe)
+    json_data = request.get_json()
+
+    #  Devuelve mensaje de advertencia en caso de no haber podido recuperar nada
+    if not json_data:
+        return {"message": "No se ha provisto ningún dato para ingresar"}, 400
+
+    #  Crea un array de ratings con los elementos del JSON
+    ratings = json_data.get('ratings', [])
+
+    for rating in ratings:
+        #  Remueve el ID, si existe, para evitar conflictos
+        rating.pop(id, None)
+        
+        id_user = rating['id_user']
+        id_clinica = rating['id_clinica']
+        tipo = rating['tipo']
+        '''
+        Realiza la siguiente query:
+        #  SELECT *
+        #  FROM ratings
+        #  WHERE ratings.tipo = '<tipo>' AND ratings.id_user = '<id_user>' AND id_clinica = '<id_clinica>'
+        #  LIMIT 1
+        #  Devuelve UN registro con las condiciones especificadas, si existe.
+        '''
+        rating_duplicado = db.session.execute(db.select(Rating).filter_by(tipo=tipo, id_user=id_user, id_clinica=id_clinica).first())
+        #  Si existe el registro, saltear el paso de añadirlo a la carga de la DB, salvo que el ID de usuario sea 1,
+        #  porque podemos usarlo para carga masiva sin afectar usuarios reales. 
+        if rating_duplicado and id_user != 1:
+            continue
+
+        new_rating = Rating(**rating)
+        db.session.add(new_rating)
+    
+    db.session.add_all(ratings)  # Agrega la lista de ratings a la sesión de la base de datos
+    db.session.commit()  # Guarda los cambios en la base de datos
+    return ratings_schema.jsonify(ratings)  # Retorna el JSON de la lista de ratings actualizada
+
+
 '''
-Endpoints de las APIs de gestión:
-get_#elemento#(id):
+Otros Endpoints de las APIs de gestión:
+get_<elemento>(id):
     # Obtiene un elemento específica de la tabla correspondiente
     # Retorna un JSON con la información del elemento correspondiente al ID proporcionado
-delete_#elemento#(id):
+delete_<elemento>(id):
     # Elimina un elemento de una tabla
     # Retorna un JSON con el registro eliminado del elemento correspondiente al ID proporcionado
-create_#elemento#():
+create_<elemento>():
     # Crea un nuevo elemento en una tabla
     # Lee los datos proporcionados en formato JSON por el cliente y crea un nuevo registro del tipo correspondiente
     # Retorna un JSON con la nueva clínica creada
-update_#elemento#(id):
+update_<elemento>(id):
     # Actualiza un elemento existente en la base de datos
     # Lee los datos proporcionados en formato JSON por el cliente y actualiza el registro del elemento con el ID especificado
     # Retorna un JSON con el elemento actualizad
 
 '''
-
 # Endpoints de CLÍNICAS:
 @app.route("/clinicas/<id>", methods=["GET"])
 def get_clinica(id):
@@ -296,7 +419,27 @@ def get_clinica(id):
 
     Retorna un JSON con la información de la clínica correspondiente al ID proporcionado
     """
-    clinica = Clinica.query.get(id)  # Obtiene la clínica correspondiente al ID recibido
+    clinica = db.get_or_404(Clinica, id, "No se encontró el ID indicado")  # Obtiene la clínica correspondiente al ID recibido
+
+    #  Realiza las queries necesarias para calcular el rating promedio
+    #  Crea una lista de tipos de rating
+    ratings_promedio = {}
+    #  Para cada tipo de rating...
+    for tipo_rating in ['instalaciones', 'medicos', 'servicio']:
+        '''
+        Realiza la siguiente query:
+        #  SELECT AVG(ratings.valor)
+        #  FROM ratings
+        #  WHERE ratings.id_clinica = <clinica> AND ratings.tipo = <tipo_rating>
+        #  Devuelve un escalar igual al promedio de ratings del tipo <tipo_rating>
+        '''
+        rating_promedio = db.session.execute(db.select(func.avg(Rating.valor)).filter_by(id_clinica=clinica, tipo=tipo_rating).scalar())
+
+        #  Añade el promedio a la lista de ratings promedio de la clínica
+        ratings_promedio[tipo_rating] = rating_promedio
+    
+    #  Agrega el campo de ratings promedio a la clínica
+    clinica.ratings_promedio = ratings_promedio
     return clinica_schema.jsonify(clinica)  # Retorna el JSON de la clínica
 
 @app.route("/clinicas/<id>", methods=["DELETE"])
@@ -306,10 +449,10 @@ def delete_clinica(id):
 
     Elimina la clinica correspondiente al ID proporcionado y retorna un JSON con el registro eliminado.
     """
-    clinica = Clinica.query.get(id)  # Obtiene la clinica correspondiente al ID recibido
+    clinica = db.get_or_404(Clinica, id, "No se encontró el ID indicado")  # Obtiene la clinica correspondiente al ID recibido
     db.session.delete(clinica)  # Elimina la clinica de la sesión de la base de datos
     db.session.commit()  # Guarda los cambios en la base de datos
-    return clinica_schema.jsonify(clinica)  # Retorna el JSON del producto eliminado
+    return clinica_schema.jsonify(clinica)  # Retorna el JSON de la clínica eliminada
 
 @app.route("/clinicas", methods=["POST"])  # Endpoint para crear una clinica
 def create_clinica():
@@ -317,36 +460,21 @@ def create_clinica():
     Endpoint para crear una nueva clinica en la base de datos.
 
     Lee los datos proporcionados en formato JSON por el cliente y crea un nuevo registro de clinica en la base de datos.
-    Retorna un JSON con la nuevo clinica creado.
+    Retorna un JSON con la nueva clinica creada.
     """
-    json_data = request.get_json()
-
-    if not json_data:
-        return {"message": "No se ha provisto ningún dato para ingresar"}, 400
-    
-    
-    data = clinica_schema.load(json_data)
-    
-    nombre = nombre
-    financ = financ
-    direccion = direccion
-    localidad = localidad
-    telefono = telefono
-    imagen = imagen
 
     nombre = request.json["nombre"]        # Obtiene el nombre de la clínica del JSON proporcionado
+    financ = request.json["financ"]        # Obtiene el tipo de la clínica del JSON proporcionado
     direccion = request.json["direccion"]  # Obtiene la dirección de la clínica del JSON proporcionado
-    localidad = request.json["localidad"]  # Obtiene la localidad de la clínica del JSON proporcionado
+    localidad = request.json["direccion"]  # Obtiene la dirección de la clínica del JSON proporcionado
     telefono = request.json["telefono"]    # Obtiene el teléfono de la clínica del JSON proporcionado
+    website = request.json["website"]      # Obtiene el sitio web de la clínica del JSON proporcionado
     imagen = request.json["imagen"]        # Obtiene la imagen de la clínica del JSON proporcionado
-    rate_edil = request.json["rate_edil"]  # Obtiene el puntaje edilicio de la clínica del JSON proporcionado
-    rate_medi = request.json["rate_medi"]  # Obtiene el puntaje médico de la clínica del JSON proporcionado
-    rate_serv = request.json["rate_serv"]  # Obtiene el puntaje de servicios de la clínica del JSON proporcionado
 
-    new_clinica = Clinica(nombre, direccion, localidad, imagen, telefono, rate_edil, rate_medi, rate_serv)  # Crea un nuevo objeto Clinica con los datos proporcionados
+    new_clinica = Clinica(nombre, financ, direccion, localidad, telefono, website, imagen)  # Crea un objeto Clinica con los datos proporcionados
     db.session.add(new_clinica)  # Agrega la nueva clinica a la sesión de la base de datos
     db.session.commit()  # Guarda los cambios en la base de datos
-    return clinica_schema.jsonify(new_clinica)  # Retorna el JSON de la nueva clínica creado
+    return clinica_schema.jsonify(new_clinica)  # Retorna el JSON de la nueva clínica creada
 
 @app.route("/clinicas/<id>", methods=["PUT"])  # Endpoint para actualizar una clínica
 def update_clinica(id):
@@ -356,156 +484,145 @@ def update_clinica(id):
     Lee los datos proporcionados en formato JSON por el cliente y actualiza el registro de la clínica con el ID especificado.
     Retorna un JSON con la clínica actualizada.
     """
-    clinica = Clinica.query.get(id)  # Obtiene la clínica existente con el ID especificado
+    clinica = db.get_or_404(Clinica, id, "No se encontró el ID indicado")  # Obtiene la clínica existente con el ID especificado
 
     # Actualiza los atributos de la clínica con los datos proporcionados en el JSON
     clinica.nombre = request.json["nombre"]
+    clinica.financ = request.json["financ"]
     clinica.direccion = request.json["direccion"]
     clinica.localidad = request.json["localidad"]
+    clinica.website = request.json["website"]
     clinica.telefono = request.json["telefono"]
     clinica.imagen = request.json["imagen"]
-    clinica.rate_edil = request.json["rate_edil"]
-    clinica.rate_medi = request.json["rate_medi"]
-    clinica.rate_serv = request.json["rate_serv"]
 
     db.session.commit()  # Guarda los cambios en la base de datos
-    return clinica_schema.jsonify(clinica)  # Retorna el JSON de la clínica actualizado
+    return clinica_schema.jsonify(clinica)  # Retorna el JSON de la clínica actualizada
 
-# Endpoints de CLÍNICAS:
-@app.route("/clinicas/<id>", methods=["GET"])
-def get_clinica(id):
-    """
-    Endpoint para obtener una clínica específica de la base de datos.
 
-    Retorna un JSON con la información de la clínica correspondiente al ID proporcionado
+# Endpoints de RATINGS:
+@app.route("/ratings/<id>", methods=["GET"])
+def get_rating(id):
     """
-    clinica = Clinica.query.get(id)  # Obtiene la clínica correspondiente al ID recibido
-    return clinica_schema.jsonify(clinica)  # Retorna el JSON de la clínica
+    Endpoint para obtener un rating específico de la base de datos.
 
-@app.route("/clinicas/<id>", methods=["DELETE"])
-def delete_clinica(id):
+    Retorna un JSON con la información del rating correspondiente al ID proporcionado
     """
-    Endpoint para eliminar una clinica de la base de datos.
+    rating = db.get_or_404(Rating, id, "No se encontró el ID indicado")  # Obtiene el rating correspondiente al ID recibido
+    #  Busca el handle de usuario y el nombre de clínica para los ID correspondientes, y los agrega a los datos devueltos por el JSON
+    id_user = rating['id_user']
+    id_clinica = rating['id_clinica']
+    user_handle = db.session.execute(db.select(User.c.handle).filter_by(id_user=id_user))
+    nombre_clinica = db.session.execute(db.select(Clinica.c.nombre).filter_by(id_clinica=id_clinica))
+        
+    rating.user_handle = user_handle
+    rating.nombre_clinica = nombre_clinica
 
-    Elimina la clinica correspondiente al ID proporcionado y retorna un JSON con el registro eliminado.
+    return rating_schema.jsonify(rating)  # Retorna el JSON del rating
+
+@app.route("/ratings/<id>", methods=["DELETE"])
+def delete_rating(id):
     """
-    clinica = Clinica.query.get(id)  # Obtiene la clinica correspondiente al ID recibido
-    db.session.delete(clinica)  # Elimina la clinica de la sesión de la base de datos
+    Endpoint para eliminar un rating de la base de datos.
+
+    Elimina el rating correspondiente al ID proporcionado y retorna un JSON con el registro eliminado.
+    """
+    rating = db.get_or_404(Rating, id, "No se encontró el ID indicado")  # Obtiene el rating correspondiente al ID recibido
+    db.session.delete(rating)  # Elimina el rating de la sesión de la base de datos
     db.session.commit()  # Guarda los cambios en la base de datos
-    return clinica_schema.jsonify(clinica)  # Retorna el JSON del producto eliminado
+    return rating_schema.jsonify(rating)  # Retorna el JSON del rating eliminado
 
-@app.route("/clinicas", methods=["POST"])  # Endpoint para crear una clinica
-def create_clinica():
+@app.route("/ratings", methods=["POST"])  # Endpoint para crear una clinica
+def create_rating():
     """
-    Endpoint para crear una nueva clinica en la base de datos.
+    Endpoint para crear un nuevo rating en la base de datos.
 
-    Lee los datos proporcionados en formato JSON por el cliente y crea un nuevo registro de clinica en la base de datos.
-    Retorna un JSON con la nuevo clinica creado.
+    Lee los datos proporcionados en formato JSON por el cliente y crea un nuevo registro de rating en la base de datos.
+    Retorna un JSON con la nuevo rating creado.
     """
-    nombre = request.json["nombre"]        # Obtiene el nombre de la clínica del JSON proporcionado
-    direccion = request.json["direccion"]  # Obtiene la dirección de la clínica del JSON proporcionado
-    localidad = request.json["localidad"]  # Obtiene la localidad de la clínica del JSON proporcionado
-    telefono = request.json["telefono"]    # Obtiene el teléfono de la clínica del JSON proporcionado
-    imagen = request.json["imagen"]        # Obtiene la imagen de la clínica del JSON proporcionado
-    rate_edil = request.json["rate_edil"]  # Obtiene el puntaje edilicio de la clínica del JSON proporcionado
-    rate_medi = request.json["rate_medi"]  # Obtiene el puntaje médico de la clínica del JSON proporcionado
-    rate_serv = request.json["rate_serv"]  # Obtiene el puntaje de servicios de la clínica del JSON proporcionado
+    tipo = request.json["tipo"]             # Obtiene el tipo del rating del JSON proporcionado
+    valor = request.json["valor"]           # Obtiene el valor del rating del JSON proporcionado
+    id_user = request.json["id_user"]       # Obtiene el ID de usuario del rating del JSON proporcionado
+    id_clinica = request.json["id_clinica"] # Obtiene el ID de clínica del rating del JSON proporcionado
 
-    new_clinica = Clinica(nombre, direccion, localidad, imagen, telefono, rate_edil, rate_medi, rate_serv)  # Crea un nuevo objeto Clinica con los datos proporcionados
-    db.session.add(new_clinica)  # Agrega la nueva clinica a la sesión de la base de datos
+    new_rating = Rating(tipo, valor, id_user, id_clinica)  # Crea un nuevo objeto Rating con los datos proporcionados
+    db.session.add(new_rating)  # Agrega el nuevo rating a la sesión de la base de datos
     db.session.commit()  # Guarda los cambios en la base de datos
-    return clinica_schema.jsonify(new_clinica)  # Retorna el JSON de la nueva clínica creado
+    return rating_schema.jsonify(new_rating)  # Retorna el JSON del nuevo rating creado
 
-@app.route("/clinicas/<id>", methods=["PUT"])  # Endpoint para actualizar una clínica
-def update_clinica(id):
+@app.route("/ratings/<id>", methods=["PUT"])  # Endpoint para actualizar un rating
+def update_rating(id):
     """
-    Endpoint para actualizar una clínica existente en la base de datos.
+    Endpoint para actualizar un rating existente en la base de datos.
 
-    Lee los datos proporcionados en formato JSON por el cliente y actualiza el registro de la clínica con el ID especificado.
-    Retorna un JSON con la clínica actualizada.
+    Lee los datos proporcionados en formato JSON por el cliente y actualiza el registro del rating con el ID especificado.
+    Retorna un JSON con el rating actualizado.
     """
-    clinica = Clinica.query.get(id)  # Obtiene la clínica existente con el ID especificado
+    rating = db.get_or_404(Rating, id, "No se encontró el ID indicado")  # Obtiene el rating existente con el ID especificado
 
-    # Actualiza los atributos de la clínica con los datos proporcionados en el JSON
-    clinica.nombre = request.json["nombre"]
-    clinica.direccion = request.json["direccion"]
-    clinica.localidad = request.json["localidad"]
-    clinica.telefono = request.json["telefono"]
-    clinica.imagen = request.json["imagen"]
-    clinica.rate_edil = request.json["rate_edil"]
-    clinica.rate_medi = request.json["rate_medi"]
-    clinica.rate_serv = request.json["rate_serv"]
-
-    db.session.commit()  # Guarda los cambios en la base de datos
-    return clinica_schema.jsonify(clinica)  # Retorna el JSON de la clínica actualizado
-
-# Endpoints de CLÍNICAS:
-@app.route("/clinicas/<id>", methods=["GET"])
-def get_clinica(id):
-    """
-    Endpoint para obtener una clínica específica de la base de datos.
-
-    Retorna un JSON con la información de la clínica correspondiente al ID proporcionado
-    """
-    clinica = Clinica.query.get(id)  # Obtiene la clínica correspondiente al ID recibido
-    return clinica_schema.jsonify(clinica)  # Retorna el JSON de la clínica
-
-@app.route("/clinicas/<id>", methods=["DELETE"])
-def delete_clinica(id):
-    """
-    Endpoint para eliminar una clinica de la base de datos.
-
-    Elimina la clinica correspondiente al ID proporcionado y retorna un JSON con el registro eliminado.
-    """
-    clinica = Clinica.query.get(id)  # Obtiene la clinica correspondiente al ID recibido
-    db.session.delete(clinica)  # Elimina la clinica de la sesión de la base de datos
-    db.session.commit()  # Guarda los cambios en la base de datos
-    return clinica_schema.jsonify(clinica)  # Retorna el JSON del producto eliminado
-
-@app.route("/clinicas", methods=["POST"])  # Endpoint para crear una clinica
-def create_clinica():
-    """
-    Endpoint para crear una nueva clinica en la base de datos.
-
-    Lee los datos proporcionados en formato JSON por el cliente y crea un nuevo registro de clinica en la base de datos.
-    Retorna un JSON con la nuevo clinica creado.
-    """
-    nombre = request.json["nombre"]        # Obtiene el nombre de la clínica del JSON proporcionado
-    direccion = request.json["direccion"]  # Obtiene la dirección de la clínica del JSON proporcionado
-    localidad = request.json["localidad"]  # Obtiene la localidad de la clínica del JSON proporcionado
-    telefono = request.json["telefono"]    # Obtiene el teléfono de la clínica del JSON proporcionado
-    imagen = request.json["imagen"]        # Obtiene la imagen de la clínica del JSON proporcionado
-    rate_edil = request.json["rate_edil"]  # Obtiene el puntaje edilicio de la clínica del JSON proporcionado
-    rate_medi = request.json["rate_medi"]  # Obtiene el puntaje médico de la clínica del JSON proporcionado
-    rate_serv = request.json["rate_serv"]  # Obtiene el puntaje de servicios de la clínica del JSON proporcionado
-
-    new_clinica = Clinica(nombre, direccion, localidad, imagen, telefono, rate_edil, rate_medi, rate_serv)  # Crea un nuevo objeto Clinica con los datos proporcionados
-    db.session.add(new_clinica)  # Agrega la nueva clinica a la sesión de la base de datos
-    db.session.commit()  # Guarda los cambios en la base de datos
-    return clinica_schema.jsonify(new_clinica)  # Retorna el JSON de la nueva clínica creado
-
-@app.route("/clinicas/<id>", methods=["PUT"])  # Endpoint para actualizar una clínica
-def update_clinica(id):
-    """
-    Endpoint para actualizar una clínica existente en la base de datos.
-
-    Lee los datos proporcionados en formato JSON por el cliente y actualiza el registro de la clínica con el ID especificado.
-    Retorna un JSON con la clínica actualizada.
-    """
-    clinica = Clinica.query.get(id)  # Obtiene la clínica existente con el ID especificado
-
-    # Actualiza los atributos de la clínica con los datos proporcionados en el JSON
-    clinica.nombre = request.json["nombre"]
-    clinica.direccion = request.json["direccion"]
-    clinica.localidad = request.json["localidad"]
-    clinica.telefono = request.json["telefono"]
-    clinica.imagen = request.json["imagen"]
-    clinica.rate_edil = request.json["rate_edil"]
-    clinica.rate_medi = request.json["rate_medi"]
-    clinica.rate_serv = request.json["rate_serv"]
+    # Actualiza los atributos del rating con los datos proporcionados en el JSON
+    rating.tipo = request.json["tipo"]
+    rating.valor = request.json["valor"]
+    rating.id_user = request.json["id_user"]
+    rating.id_clinica = request.json["id_clinica"]
 
     db.session.commit()  # Guarda los cambios en la base de datos
-    return clinica_schema.jsonify(clinica)  # Retorna el JSON de la clínica actualizado
+    return rating_schema.jsonify(rating)  # Retorna el JSON del rating actualizado
+
+
+# Endpoints de USUARIOS:
+@app.route("/users/<id>", methods=["GET"])
+def get_users(id):
+    """
+    Endpoint para obtener un usuario específico de la base de datos.
+
+    Retorna un JSON con la información del usuario correspondiente al ID proporcionado
+    """
+    user = db.get_or_404(User, id, "No se encontró el ID indicado")  # Obtiene el usuario correspondiente al ID recibido
+    return user_schema.jsonify(user)  # Retorna el JSON del usuario
+
+@app.route("/users/<id>", methods=["DELETE"])
+def delete_user(id):
+    """
+    Endpoint para eliminar un usuario de la base de datos.
+
+    Elimina el usuario correspondiente al ID proporcionado y retorna un JSON con el registro eliminado.
+    """
+    user = db.get_or_404(User, id, "No se encontró el ID indicado")   # Obtiene el usuario correspondiente al ID recibido
+    db.session.delete(user)  # Elimina el usuario de la sesión de la base de datos
+    db.session.commit()  # Guarda los cambios en la base de datos
+    return user_schema.jsonify(user)  # Retorna el JSON del usuario eliminado
+
+@app.route("/users", methods=["POST"])  # Endpoint para crear una clinica
+def create_user():
+    """
+    Endpoint para crear un nuevo usuario en la base de datos.
+
+    Lee los datos proporcionados en formato JSON por el cliente y crea un nuevo registro de usuario en la base de datos.
+    Retorna un JSON con la nuevo rating creado.
+    """
+    handle = request.json["handle"] # Obtiene el nombre del usuario del JSON proporcionado
+
+
+    new_user = User(handle)  # Crea un nuevo objeto User con los datos proporcionados
+    db.session.add(new_user)  # Agrega el nuevo usuario a la sesión de la base de datos
+    db.session.commit()  # Guarda los cambios en la base de datos
+    return user_schema.jsonify(new_user)  # Retorna el JSON del nuevo usuario creado
+
+@app.route("/users/<id>", methods=["PUT"])  # Endpoint para actualizar un usuario
+def update_rating(id):
+    """
+    Endpoint para actualizar un usuario existente en la base de datos.
+
+    Lee los datos proporcionados en formato JSON por el cliente y actualiza el registro del usuario con el ID especificado.
+    Retorna un JSON con el usuario actualizado.
+    """
+    user = db.get_or_404(User, id, "No se encontró el ID indicado")   # Obtiene el usuario existente con el ID especificado
+
+    # Actualiza los atributos del usuario con los datos proporcionados en el JSON
+    user.handle = request.json["handle"]
+
+    db.session.commit()  # Guarda los cambios en la base de datos
+    return user_schema.jsonify(user)  # Retorna el JSON del usuario actualizado
 
 '''
 Este código es el programa principal de la aplicación Flask. Se verifica si el archivo actual está siendo ejecutado directamente y no importado como módulo. Luego, se inicia el servidor Flask en el puerto 5000 con el modo de depuración habilitado. Esto permite ejecutar la aplicación y realizar pruebas mientras se muestra información adicional de depuración en caso de errores.
