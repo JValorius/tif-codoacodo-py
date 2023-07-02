@@ -11,7 +11,8 @@ createApp({
       imagen: "",
       stock: 0,
       precio: 0,
-      url: "https://jvalorius.pythonanywhere.com/productos" + id,
+      url:'http://localhost:5000/clinicas',
+      //url: "https://jvalorius.pythonanywhere.com/productos" + id,
     };
   },
   methods: {
