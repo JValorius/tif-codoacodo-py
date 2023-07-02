@@ -6,6 +6,7 @@ createApp({
   data() {
     return {
       // Inicializa las variables
+      id: 0,
       nombre: "",
       imagen: "",
       stock: 0,
@@ -41,7 +42,6 @@ createApp({
       A continuación, se utiliza la función fetch para realizar una solicitud HTTP tipo PUT a la URL this.url utilizando las opciones definidas en options. Si la solicitud se realiza con éxito, se muestra una alerta indicando que el registro ha sido actualizado y se redirige al usuario a la página "./productos.html". Si ocurre algún error durante el proceso, se captura la excepción en el bloque catch, se registra el error en la consola y se muestra una alerta indicando que ha ocurrido un error al actualizar.
        */
       let producto = {
-        id: this.id,
         nombre: this.nombre,
         precio: this.precio,
         stock: this.stock,
