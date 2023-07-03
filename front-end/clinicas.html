@@ -5,9 +5,15 @@
     <title>Listar Clínicas</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.1/dist/css/bootstrap.min.css" rel="stylesheet"
-        integrity="sha384-iYQeCzEYFbKjA/T2uDLTpkwGzCiq6soy8tYaI1GyVh/UjpbCx/TYkiZhlZB6+fzT" crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+
+    <link rel="stylesheet" href="css/sitewrap.css">
+
+    <script src="https://kit.fontawesome.com/203a1012d5.js" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="js/sitewrap.js" defer></script>
+    <script src="js/highlight.js" defer></script>
+    <script src="js/responsive.js" defer></script>
     <style>
         .btn-animate {
             transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
@@ -23,16 +29,16 @@
 </head>
 
 <body>
-    <header id="header">
-        <!-- Coloca la barra de navegación aquí -->
+    <header id="header-index" class="header">
+        <custom-header></custom-header>
     </header>
     <main>
         <div id="app" class="container">
-            <h1>Productos</h1>
+            <h1>Clínicas</h1>
             <br>
             <!-- <a class="btn btn-primary" href="producto-create.html">Nuevo</a> -->
             <!-- <a class="btn btn-primary btn-animate" href="producto-create.html">Nuevo</a> -->
-            <a class="btn btn-primary animate__animated animate__heartBeat btn-animate" href="producto-create.html">Nuevo</a>
+            <a class="btn btn-primary animate__animated animate__heartBeat btn-animate" href="clinica-create.html">Nuevo</a>
             <br><br>
             <div v-if="error">
                 <p>Lo sentimos, ha ocurrido un error.</p>
@@ -49,29 +55,33 @@
                                 <tr>
                                     <th scope="col">Id</th>
                                     <th scope="col">Nombre</th>
-                                    <th scope="col">Precio</th>
-                                    <th scope="col">Stock</th>
+                                    <th scope="col">Tipo</th>
+                                    <th scope="col">Domicilio</th>
+                                    <th scope="col">Sitio Web</th>
+                                    <th scope="col">Teléfono</th>
                                     <th scope="col">Imagen</th>
                                     <th scope="col">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <!-- Iterar sobre cada producto -->
-                                <tr class="" v-for="producto in productos">
-                                    <td scope="row">{{producto.id}}</td>
-                                    <td>{{producto.nombre}}</td>
-                                    <td>{{producto.precio}}</td>
-                                    <td>{{producto.stock}}</td>
+                                <!-- Iterar sobre cada clinica -->
+                                <tr class="" v-for="clinica in clinicas">
+                                    <td scope="row">{{clinica.id}}</td>
+                                    <td>{{clinica.nombre}}</td>
+                                    <td>{{clinica.financ}}</td>
+                                    <td>{{clinica.direccion}}</td>
+                                    <td>{{clinica.website}}</td>
+                                    <td>{{clinica.telefono}}</td>
                                     <td>
-                                        <img width="150" :src="'img/' + producto.imagen" :alt="producto.nombre">
+                                        <img width="150" :src="'img/' + clinica.imagen" :alt="clinica.nombre">
                                     </td>
                                     <td>
-                                        <!-- Botón para editar el producto -->
+                                        <!-- Botón para editar la clinica -->
                                         <a class="btn btn-primary"
-                                            :href="'producto-update.html?id='+ producto.id">Editar</a>
+                                            :href="'clinica-update.html?id='+ clinica.id">Editar</a>
                                         <!-- Botón para eliminar el producto -->
                                         <button type="button" class="btn btn-danger"
-                                            v-on:click="eliminar(producto.id)">Eliminar</button>
+                                            v-on:click="eliminar(clinica.id)">Eliminar</button>
                                     </td>
                                 </tr>
                             </tbody>
@@ -81,17 +91,9 @@
             </div>
         </div>
     </main>
-    <footer>
-        <!-- Coloca aquí el contenido del pie de página -->
+    <footer id="footer-index" class="footer">
+        <custom-footer></custom-footer>
     </footer>
-    <!-- Enlace de Bootstrap -->
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"
-        integrity="sha384-oBqDVmMz9ATKxIep9tiCxS/Z9fNfEXiDAYTujMAeBAsjFuCZSmKbSSUnQlmh/jp3"
-        crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.1/dist/js/bootstrap.min.js"
-        integrity="sha384-7VPbUDkoPSGFnVtYi0QogXtr74QeVeeIs99Qfg5YCF+TidwNdjvaKZX19NZ/e6oz"
-        crossorigin="anonymous"></script>
-    <script src="./js/main.js"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script><!--Enlace de VUE-->
-    <script src="./js/productos.js"></script>
+    <script src="./js/clinicas.js"></script>
 </body>

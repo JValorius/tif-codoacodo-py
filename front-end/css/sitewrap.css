@@ -13,12 +13,7 @@ body > * {
 
 header {
     display: flex;
-}
-
-nav {
-    display: flex;
-    flex-flow: row wrap;
-    justify-content: center;
+    align-items: stretch;
 }
 
 footer {
@@ -31,6 +26,15 @@ footer {
 /* Clases */
 .branding-sitio {
     display: flex;
+    flex-flow: column;
+}
+
+.descripcion-sitio {
+    margin: -5px 0 0 0;
+    text-align: center;
+    color: var(--col-ace);
+    font-style: italic;
+    font-size: .9em;
 }
 
 .bottom-logo {
@@ -72,17 +76,13 @@ footer {
 }
 
 /* IDs */
-#nav-index {
-    position: -webkit-sticky;
-    position: sticky;
-    top: 0;
-    background-color: #fff;
-}
 
 #menu-principal {
+    flex-grow: 4;
     display: flex;
     flex-flow: row wrap;
-    justify-content: center;
+    align-items: center;
+    justify-content: flex-end;
 }
 
 #menu-principal a {

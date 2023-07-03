@@ -16,10 +16,11 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 # Importa la clase SQLAlchemy del módulo flask_sqlalchemy
 from flask_sqlalchemy import SQLAlchemy
-# Importa la clase func del módulo sqlalchemy.sql, que será necesario para realizar queries avanzadas (como AVERAGE)
-from sqlalchemy.sql import func
-# Importa las clases Marshmallow y fields del módulo flask_marshmallow
-from flask_marshmallow import Marshmallow, fields
+# Importa las clases select y func del módulo sqlalchemy.sql, que serán necesarias para realizar queries avanzadas
+from sqlalchemy.sql import select, func, text
+# Importa la clase Marshmallow del módulo flask_marshmallow
+from flask_marshmallow import Marshmallow
+from flask_marshmallow.fields import fields
 # Importa la clase enum, para poder declarar enumeradores
 import enum
 
@@ -77,7 +78,7 @@ class RtEnum(enum.Enum): #Enumerador para los tres tipos de rating
 class Clinica(db.Model):  # Clase para tabla de Clínicas
 
     id = db.Column(db.Integer, primary_key=True)
-    nombre = db.Column(db.String(150))
+    nombre = db.Column(db.String(150), nullable=False)
     financ = db.Column(db.Enum(FnEnum))
     direccion = db.Column(db.String(150))
     localidad = db.Column(db.String(50))
@@ -107,12 +108,26 @@ class Clinica(db.Model):  # Clase para tabla de Clínicas
         self.website = website
         self.telefono = telefono
         self.imagen = imagen
+    '''
+    Habilita la realización de la siguiente query:
+    #  SELECT AVG(ratings.valor)
+    #  FROM ratings
+    #  WHERE ratings.id_clinica = <clinica> AND ratings.tipo = <tipo_rating>
+    #  Devuelve un escalar igual al promedio de ratings del tipo <tipo_rating>
+    '''
+    '''
+    @property
+    def ratings_promedio(self):
+        query = select([func.avg(Rating.valor)]).where(Rating.id_clinica == self.id).group_by(Rating.tipo)
+        results = db.session.execute(query).fetchall()
+        return results
+    '''
 
 class User(db.Model):  # Clase para tabla de Usuarios
 
     id = db.Column(db.Integer, primary_key=True)
-    handle = db.Column(db.db.String(20))
-    pwd = db.Column(db.db.String(20))
+    handle = db.Column(db.String(20), unique= True, nullable=False)
+    pwd = db.Column(db.String(20))
     ratings = db.relationship("Rating", backref='user', cascade="all, delete-orphan", lazy=True)
 
     def __init__(self, handle, pwd):
@@ -126,12 +141,13 @@ class User(db.Model):  # Clase para tabla de Usuarios
         self.handle = handle
         self.pwd = pwd
 
+    # Acá puedo agregar más clases para definir otras tablas en la base de datos
 
 class Rating(db.Model):  # Clase para tabla de Ratings
 
     id = db.Column(db.Integer, primary_key=True)
-    tipo = db.Column(db.Enum(RtEnum))
-    valor = db.column(db.Integer, db.CheckConstraint('valor >= 1 AND valor <= 5'))
+    tipo = db.Column(db.Enum(RtEnum), nullable=False)
+    valor = db.column_property(db.Column(db.Integer, db.CheckConstraint('valor >= 1 AND valor <= 5'), nullable=False))
     id_clinica = db.Column(db.Integer, db.ForeignKey('clinica.id'), nullable=False)
     id_user = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
@@ -149,27 +165,12 @@ class Rating(db.Model):  # Clase para tabla de Ratings
         self.valor = valor
         self.id_clinica = id_clinica
         self.id_user = id_user
-    # Acá puedo agregar más clases para definir otras tablas en la base de datos
-
 
 with app.app_context():
     db.create_all()  # Crea todas las tablas en la base de datos
 
 
 # DEFINICIONES DE SCHEMAS
-
-class RatingSchema(ma.Schema):
-    """
-    Esquema de la clase Rating.
-
-    Este esquema define los campos que serán serializados/deserializados para la clase Rating.
-    """
-    class Meta:
-        id = fields.Int(dump_only=True)
-        tipo = fields.Enum(Required=True)
-        puntaje = fields.Str(Required=True)
-        id_clinica = fields.Int(Required=True)
-        id_user = fields.Int(Required=True)
 
 class UserSchema(ma.Schema):
     """
@@ -178,10 +179,8 @@ class UserSchema(ma.Schema):
     Este esquema define los campos que serán serializados/deserializados para la clase User.
     """
     class Meta:
-        id = fields.Int(dump_only=True)
-        handle = fields.Str(required=True)
-        exclude = ("pwd")
-        ratings = fields.Nested(RatingSchema, many=True)
+        fields = ("id", "handle")
+        dump_only = ("id",)
 
 class ClinicaSchema(ma.Schema):
     """
@@ -190,15 +189,27 @@ class ClinicaSchema(ma.Schema):
     Este esquema define los campos que serán serializados/deserializados para la clase Clinica.
     """
     class Meta:
-        id = fields.Int(dump_only=True)
-        nombre = fields.Enum(Required=True)
-        financ = fields.Str()
-        direccion = fields.Int()
-        localidad = fields.Int()
-        telefono = fields.Str()
-        website = fields.Str()
-        imagen = fields.Str()
-        ratings = fields.Nested(RatingSchema, many=True)
+        fields = ("id", "nombre", "financ", "direccion", "localidad", "telefono", "website", "imagen", "promedio_inst", "promedio_medi", "promedio_serv")
+        dump_only = ("id",)
+        include_fk = False
+    
+   # avg_ratings = fields.Method("get_ratings_promedio")
+
+    
+    
+class RatingSchema(ma.Schema):
+    """
+    Esquema de la clase Rating.
+
+    Este esquema define los campos que serán serializados/deserializados para la clase Rating.
+    """
+    class Meta:
+        dump_only = ("id","tipo","puntaje","id_clinica","nom_clinica","id_user", "nom_user")
+
+    
+
+UserSchema.ratings = fields.Nested(RatingSchema, many=True)
+ClinicaSchema.ratings = fields.Nested(RatingSchema, many=True)
 
 user_schema = UserSchema()  # Objeto para serializar/deserializar un usuario
 users_schema = UserSchema(many=True)  # Objeto para serializar/deserializar múltiples usuarios
@@ -223,35 +234,28 @@ def get_Clinicas():
     pag = request.args.get('pag', default=1, type=int)
     por_pag = request.args.get('por_pag', default=None, type=int)
     
+    # query = select([func.avg(Rating.valor)]).where(Rating.id_clinica == Clinica.id).group_by(Rating.tipo)
+    query = text("""
+            SELECT clinica.*,
+            AVG(CASE WHEN rating.tipo = 'instalaciones' THEN CAST(rating.valor AS FLOAT) END) AS promedio_inst,
+            AVG(CASE WHEN rating.tipo = 'medicos' THEN CAST(rating.valor AS FLOAT) END) AS promedio_medi,
+            AVG(CASE WHEN rating.tipo = 'servicio' THEN CAST(rating.valor AS FLOAT) END) AS promedio_serv
+            FROM clinica
+            LEFT JOIN rating ON clinica.id = rating.id_clinica
+            GROUP BY clinica.id;
+            """)
+
+    print(query)
     if por_pag is None:
         #  Obtiene todos los registros de la tabla clínicas si no se definió un parámetro de resultados por página
-        list_clinicas = db.session.execute(db.select(Clinica))
+        list_clinicas = db.session.execute(query)
+        print(list_clinicas)
     else:
         #  Si se definió un parámetro de resultados por página, pagina los resultados
-        list_clinicas = db.paginate(db.select(Clinica), pag, por_pag)
-
-    #  Realiza las queries necesarias para calcular el rating promedio
-    for clinica in list_clinicas:
-        #  Crea una lista de tipos de rating
-        ratings_promedio = {}
-        #  Para cada tipo de rating...
-        for tipo_rating in ['instalaciones', 'medicos', 'servicio']:
-            '''
-            Realiza la siguiente query:
-            #  SELECT AVG(ratings.valor)
-            #  FROM ratings
-            #  WHERE ratings.id_clinica = <clinica> AND ratings.tipo = <tipo_rating>
-            #  Devuelve un escalar igual al promedio de ratings del tipo <tipo_rating>
-            '''
-            rating_promedio = db.session.execute(db.select(func.avg(Rating.valor)).filter_by(id_clinica=clinica, tipo=tipo_rating).scalar())
-
-            #  Añade el promedio a la lista de ratings promedio de la clínica
-            ratings_promedio[tipo_rating] = rating_promedio
-        
-        #  Agrega el campo de ratings promedio a la clínica
-        clinica.ratings_promedio = ratings_promedio
+        list_clinicas = db.paginate(query, pag, por_pag)
 
     result = clinicas_schema.dump(list_clinicas)  # Serializa los registros en formato JSON
+    print(result)
     return jsonify(result)  # Retorna el JSON de todos los registros de la tabla
 
 @app.route("/users", methods=["GET"])
@@ -420,26 +424,6 @@ def get_clinica(id):
     Retorna un JSON con la información de la clínica correspondiente al ID proporcionado
     """
     clinica = db.get_or_404(Clinica, id, "No se encontró el ID indicado")  # Obtiene la clínica correspondiente al ID recibido
-
-    #  Realiza las queries necesarias para calcular el rating promedio
-    #  Crea una lista de tipos de rating
-    ratings_promedio = {}
-    #  Para cada tipo de rating...
-    for tipo_rating in ['instalaciones', 'medicos', 'servicio']:
-        '''
-        Realiza la siguiente query:
-        #  SELECT AVG(ratings.valor)
-        #  FROM ratings
-        #  WHERE ratings.id_clinica = <clinica> AND ratings.tipo = <tipo_rating>
-        #  Devuelve un escalar igual al promedio de ratings del tipo <tipo_rating>
-        '''
-        rating_promedio = db.session.execute(db.select(func.avg(Rating.valor)).filter_by(id_clinica=clinica, tipo=tipo_rating).scalar())
-
-        #  Añade el promedio a la lista de ratings promedio de la clínica
-        ratings_promedio[tipo_rating] = rating_promedio
-    
-    #  Agrega el campo de ratings promedio a la clínica
-    clinica.ratings_promedio = ratings_promedio
     return clinica_schema.jsonify(clinica)  # Retorna el JSON de la clínica
 
 @app.route("/clinicas/<id>", methods=["DELETE"])
@@ -609,7 +593,7 @@ def create_user():
     return user_schema.jsonify(new_user)  # Retorna el JSON del nuevo usuario creado
 
 @app.route("/users/<id>", methods=["PUT"])  # Endpoint para actualizar un usuario
-def update_rating(id):
+def update_user(id):
     """
     Endpoint para actualizar un usuario existente en la base de datos.
 

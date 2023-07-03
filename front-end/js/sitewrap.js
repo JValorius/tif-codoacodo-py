@@ -2,16 +2,15 @@ const { createApp } = Vue;
 
 const customHeader = {
     template: `
-            <div class="branding-sitio">
+            <div class="branding-sitio upper">
                 <a href="index.html" rel="home" title="Elegir Clínica">
                     <div><img src="svg/isologo.svg" height="50" alt="ElegirClinica Logo"></div>
                 </a>
-                <div>
-                    <h6 class="descripcion-sitio">{{tagline}}</h6>
+                <div class="descripcion-container">
+                    <h4 class="descripcion-sitio">{{tagline}}</h4>
                 </div>
             </div>
             <div aria-hidden="true" id="menu-principal" class="menu nav-menu">
-                <a v-bind:href="home" id="menu-princ-1" class="menu-item">Inicio</a>
                 <a v-bind:href="ranking" id="menu-princ-2" class="menu-item">Clínicas</a>
                 <a v-bind:href="analysis" id="menu-princ-3" class="menu-item">Ratings</a>
                 <a v-bind:href="about" id="menu-princ-4" class="menu-item">Usuarios</a>
@@ -23,7 +22,6 @@ const customHeader = {
     data() {
         return {
             tagline: 'Panel de control',
-            home: "index.html",
             Clínicas: "clinicas.html",
             Ratings: "ratings.html",
             Usuarios: "usuarios.html",
@@ -33,7 +31,7 @@ const customHeader = {
 
 const customFooter = {
     template: `
-            <div class="branding-sitio">
+            <div class="branding-sitio lower">
                 <div class="bottom-logo"><img src="svg/logo.svg" height="50" alt="ElegirClinica Logo"></div>
                 <div class="info-sitio">
                     <ul>

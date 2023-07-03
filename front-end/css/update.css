@@ -1,0 +1,8 @@
+@import "sitewrap.css";
+
+.edicion-elemento {
+    background-color: var(--col-sec-cl);
+    margin:10px auto;
+    width: 400px;
+    padding: 20px;
+}

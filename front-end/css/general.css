@@ -3,55 +3,45 @@
 @import url('https://fonts.googleapis.com/css2?family=Didact+Gothic&family=Montserrat:ital,wght@0,200;0,400;0,700;1,200;1,400;1,700&family=Open+Sans:ital,wght@0,300;0,400;1,300;1,400&display=swap');
 
 
-:root{
-  --col-pri:#FFF;
-  
-  --col-sec-cl:#5493b5;
-  --col-sec-md:#0075B2;
-  --col-sec-os:#003451;
+:root {
+	--col-pri: #FFF;
 
-  --col-ter-cl:#ca6366;
-  --col-ter-md:#C1272D;
-  --col-ter-os:#551416;
+	--col-sec-cl: #5493b5;
+	--col-sec-md: #0075B2;
+	--col-sec-os: #003451;
 
-  --col-ace:#848484;
-  --col-txt:#000;
+	--col-ter-cl: #ca6366;
+	--col-ter-md: #C1272D;
+	--col-ter-os: #551416;
+
+	--col-ace: #848484;
+	--col-txt: #000;
 }
 
 /* Tipos */
 body {
-  font-family: 'Montserrat', sans-serif;
-  text-decoration: none;
-  outline: 0;
-  background-color: transparent;
+	font-family: 'Montserrat', sans-serif;
+	text-decoration: none;
+	outline: 0;
+	background-color: transparent;
 }
 
 a {
-  color: var(--col-sec-md);
-  text-decoration: none;
+	color: var(--col-sec-md);
+	text-decoration: none;
 }
 
 a:active {
-  color: var(--col-ace-md);
+	color: var(--col-ace-md);
 }
 
 a:hover {
-  color: var(--col-ter-md);
-}
-
-/* Clases */
-
-.descripcion-sitio {
-  margin: -5px 0 0 0;
-  /* text-align: center; */
-  color: var(--col-ace);
-  font-style: italic;
-  font-size: .9em;
+	color: var(--col-ter-md);
 }
 
 div p {
-  display: block;
-  margin: 50px;
-  text-align: center;
-  
+	display: block;
+	margin: 50px;
+	text-align: center;
+
 }
