@@ -1,11 +1,19 @@
 console.log(location.search); // Imprime en la consola los argumentos pasados a este formulario
-var id = location.search.substr(4); // Obtiene el valor del argumento 'id' de la URL
+var id = location.search.substring(4); // Obtiene el valor del argumento 'id' de la URL
 console.log(id);
 const { createApp } = Vue;
+
 createApp({
 	data() {
 		return {
-			editComponent: null
+			// Inicializa las variables
+			id: 0,
+			tipo: "",
+			valor: 0,
+			id_user: 0,
+			id_clinica: 0,
+			url: 'http://localhost:5000/ratings/' + id,
+			//url: "https://jvalorius.pythonanywhere.com/productos" + id,
 		};
 	},
 	methods: {
@@ -21,10 +29,10 @@ createApp({
 				.then((data) => {
 					console.log(data);
 					this.id = data.id;
-					this.nombre = data.nombre;
-					this.imagen = data.imagen;
-					this.stock = data.stock;
-					this.precio = data.precio;
+					this.tipo = data.tipo;
+					this.valor = data.valor;
+					this.id_user = data.id_user;
+					this.id_clinica = data.id_clinica;
 				})
 				.catch((err) => {
 					console.error(err);
@@ -35,22 +43,23 @@ createApp({
 			/* Este código define la función modificar(). En esta función, se crea un objeto producto que contiene las propiedades nombre, precio, stock e imagen obtenidas de la instancia de Vue. Luego se define un objeto options que especifica las opciones para la solicitud HTTP.
 			A continuación, se utiliza la función fetch para realizar una solicitud HTTP tipo PUT a la URL this.url utilizando las opciones definidas en options. Si la solicitud se realiza con éxito, se muestra una alerta indicando que el registro ha sido actualizado y se redirige al usuario a la página "./productos.html". Si ocurre algún error durante el proceso, se captura la excepción en el bloque catch, se registra el error en la consola y se muestra una alerta indicando que ha ocurrido un error al actualizar.
 			 */
-			let producto = {
-				nombre: this.nombre,
-				precio: this.precio,
-				stock: this.stock,
-				imagen: this.imagen,
+			let rating = {
+				tipo: this.tipo,
+				valor: this.valor,
+				id_user: this.id_user,
+				id_clinica: this.id_clinica,
 			};
 			var options = {
-				body: JSON.stringify(producto),
+				body: JSON.stringify(rating),
 				method: "PUT",
 				headers: { "Content-Type": "application/json" },
 				redirect: "follow",
 			};
+			console.log(options);
 			fetch(this.url, options)
 				.then(function () {
 					alert("Registro actualizado!");
-					window.location.href = "./productos.html";
+					window.location.href = "./ratings.html";
 				})
 				.catch((err) => {
 					console.error(err);

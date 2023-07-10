@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Editar Clínica</title>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+
+    <link rel="stylesheet" href="css/update.css">
+
+    <script src="https://kit.fontawesome.com/203a1012d5.js" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="js/sitewrap.js" defer></script>
+    <script src="js/highlight.js" defer></script>
+    <script src="js/clinica-edit.js" defer></script>
+</head>
+
+<body>
+    <header id="header-index" class="header"></header>
+    <main>
+        <div id="app" class="container-clinica">
+            <div id="titulo-accion">
+                <h1>Editar Clínica</h1>
+            </div>
+            <form class="edicion-elemento">
+                <div class="titulo">
+                    <h3>Editando clínica con ID {{id}}</h3>
+                </div>
+                <div class="r1">
+                    <div class="p1"><label for="nombre">Nombre</label></div>
+                    <div class="p2"><input class="form-control" type="text" name="nombre" id="nombre" v-model="nombre"></div>
+                </div>
+                <div class="r1">
+                    <div class="p1"><label for="financ">Tipo</label></div>
+                    <div class="p2"><input class="form-control" type="text" name="financ" id="financ" v-model="financ"></div>
+                </div>
+                <div class="r1">
+                    <div class="p1"><label for="direccion">Domicilio</label></div>
+                    <div class="p2"><input class="form-control" type="text" name="direccion" id="direccion" v-model="direccion"></div>
+                </div>
+                <div class="r1">
+                    <div class="p1"><label for="localidad">Localidad</label></div>
+                    <div class="p2"><input class="form-control" type="text" name="localidad" id="localidad" v-model="localidad"></div>
+                </div>
+                <div class="r1">
+                    <div class="p1"><label for="telefono">Teléfono</label></div>
+                    <div class="p2"><input class="form-control" type="text" name="telefono" id="telefono" v-model="telefono"></div>
+                </div>
+                <div class="r1">
+                    <div class="p1"><label for="website">Sitio Web</label></div>
+                    <div class="p2"><input class="form-control" type="text" name="website" id="website" v-model="website"></div>
+                </div>
+                <div class="r1">
+                    <div class="p1"><label for="imagen">Imagen</label></div>
+                    <div class="p2"><input class="form-control" type="text" name="imagen" id="imagen" v-model="imagen"></div>
+                </div>
+                <div class="img-container"><img width="300" :src="'img/' + imagen" alt=""></div>
+                <div class="action-container">
+                    <button type="button" class="bot-princ" v-on:click="modificar()">Grabar</button>
+                    <button type="button" class="bot-canc" onclick="window.location.href = 'clinicas.html';">Cancelar</button>
+                </div>
+            </form>
+    </main>
+    <footer id="footer-index" class="footer"></footer>
+</body>
+</html>

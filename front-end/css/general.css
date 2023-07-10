@@ -1,20 +1,20 @@
 /* ELEMENTOS UNIVERSALES, FUENTES, COLORES */
-
 @import url('https://fonts.googleapis.com/css2?family=Didact+Gothic&family=Montserrat:ital,wght@0,200;0,400;0,700;1,200;1,400;1,700&family=Open+Sans:ital,wght@0,300;0,400;1,300;1,400&display=swap');
 
 
 :root {
 	--col-pri: #FFF;
 
-	--col-sec-cl: #5493b5;
+	--col-sec-cl: #98c0d6;
 	--col-sec-md: #0075B2;
 	--col-sec-os: #003451;
 
-	--col-ter-cl: #ca6366;
+	--col-ter-cl: #e9afb1;
 	--col-ter-md: #C1272D;
 	--col-ter-os: #551416;
 
-	--col-ace: #848484;
+	--col-lig: #dfdfdf;
+	--col-ace: #8d8d8d;
 	--col-txt: #000;
 }
 
@@ -24,6 +24,12 @@ body {
 	text-decoration: none;
 	outline: 0;
 	background-color: transparent;
+}
+
+button {
+	font-family: 'Montserrat', sans-serif;
+	text-decoration: none;
+	outline: 0;
 }
 
 a {

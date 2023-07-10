@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Listar Clínicas</title>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+
+    <link rel="stylesheet" href="css/tables.css">
+
+    <script src="https://kit.fontawesome.com/203a1012d5.js" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="js/sitewrap.js" defer></script>
+    <script src="js/highlight.js" defer></script>
+    <script src="js/clinica-edit.js" defer></script>
+</head>
+
+<body>
+    <header id="header-index" class="header"></header>
+            <!-- place navbar here -->
+        </header>
+        <main>
+            <div class="container-rating" id="app">
+                <form style="background-color: aliceblue;margin:10px auto ; width: 400px; padding: 20px;">
+                    <h1>Alta de Producto</h1>
+                    <div class="mb-3">
+                        <label for="nombre">Nombre</label>
+                        <input type="text" name="nombre" id="nombre" v-model="nombre">
+                    </div>
+                    <div class="mb-3">
+                        <label for="precio">Precio</label>
+                        <input type="number" name="precio" id="precio" v-model="precio">
+                    </div>
+                    <div class="mb-3">
+                        <label for="stock">Stock</label>
+                        <input type="number" name="stock" id="stock" v-model="stock">
+                    </div>
+                    <div class="mb-3">
+                        <label for="imagen">Imagen</label>
+                        <input type="text" name="imagen" id="imagen" v-model="imagen">
+                        <img width="100" :src="'img/' + imagen" alt="">
+    
+                    </div>
+    
+                    <button type="button" class="btn btn-success" v-on:click="grabar()">Grabar</button>
+                </form>
+    
+            </div>
+        </main>
+    <footer id="footer-index" class="footer"></footer>
+</body>

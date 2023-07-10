@@ -3,97 +3,96 @@
 
 <head>
     <title>Listar Clínicas</title>
-    <meta charset="utf-8">
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
 
-    <link rel="stylesheet" href="css/sitewrap.css">
+    <link rel="stylesheet" href="css/tables.css">
 
     <script src="https://kit.fontawesome.com/203a1012d5.js" crossorigin="anonymous"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="js/sitewrap.js" defer></script>
     <script src="js/highlight.js" defer></script>
-    <script src="js/responsive.js" defer></script>
-    <style>
-        .btn-animate {
-            transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
-        }
-
-        .btn-animate:hover {
-            transform: scale(1.1);
-            /* Aumenta el tamaño del botón */
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
-            /* Agrega una sombra */
-        }
-    </style>
+    <script src="js/clinicas.js" defer></script>
 </head>
 
 <body>
-    <header id="header-index" class="header">
-        <custom-header></custom-header>
-    </header>
+    <header id="header-index" class="header"></header>
     <main>
-        <div id="app" class="container">
-            <h1>Clínicas</h1>
-            <br>
-            <!-- <a class="btn btn-primary" href="producto-create.html">Nuevo</a> -->
-            <!-- <a class="btn btn-primary btn-animate" href="producto-create.html">Nuevo</a> -->
-            <a class="btn btn-primary animate__animated animate__heartBeat btn-animate" href="clinica-create.html">Nuevo</a>
-            <br><br>
+        <div id="app" class="container-clinica">
+            <div id="titulo-accion">
+                <h1 v-html="tituloPagina"></h1>
+                <button class="bot-princ" onclick="window.location.href = 'clinica-create.html';">Nueva</button>
+                <form name="busqueda" method="POST" action="" id="formularioBusqueda">
+                    <input class="form-control" type="text" placeholder="Buscar..." name="textoBuscado" ref="formBusq">
+                    <button type="button" class="searcher" type="submit" v-on:click="buscar()">Buscar</button>
+                </form>
+            </div>
             <div v-if="error">
-                <p>Lo sentimos, ha ocurrido un error.</p>
+                <p>Lo sentimos, ha ocurrido un error: {{}}</p>
             </div>
             <div v-else>
-                <section v-if="cargando">
-                    <div class="spinner-border"></div>
+                <template v-if="cargando">
+                    <div class="aviso-carga"></div>
                     <p>Cargando...</p>
-                </section>
-                <section v-else>
-                    <div class="table-responsive">
-                        <table class="table table-bordered">
+                </template>
+                <template v-else>
+                    <div class="clinica-container">
+                        <table id="loaded-container" class="table main-table">
                             <thead>
                                 <tr>
                                     <th scope="col">Id</th>
                                     <th scope="col">Nombre</th>
-                                    <th scope="col">Tipo</th>
-                                    <th scope="col">Domicilio</th>
-                                    <th scope="col">Sitio Web</th>
-                                    <th scope="col">Teléfono</th>
+                                    <th scope="col">Datos</th>
                                     <th scope="col">Imagen</th>
                                     <th scope="col">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <!-- Iterar sobre cada clinica -->
-                                <tr class="" v-for="clinica in clinicas">
+                                <tr class="row-item" v-for="clinica in clinicas">
                                     <td scope="row">{{clinica.id}}</td>
                                     <td>{{clinica.nombre}}</td>
-                                    <td>{{clinica.financ}}</td>
-                                    <td>{{clinica.direccion}}</td>
-                                    <td>{{clinica.website}}</td>
-                                    <td>{{clinica.telefono}}</td>
+                                    <td scope="row" id="datosclinic">
+                                        <table class="table table-inner">
+                                            <tr class="">
+                                                <th class="header-datos">Tipo</th>
+                                                <td>{{clinica.financ}}</td>
+                                            </tr>
+                                            <tr class="header-datos">
+                                                <th>Domicilio</th>
+                                                <td>{{clinica.direccion}}, {{clinica.localidad}}</td>
+                                            </tr>
+                                            <tr class="header-datos">
+                                                <th>Sitio web</th>
+                                                <td>{{clinica.website}}</td>
+                                            </tr>
+                                            <tr class="header-datos">
+                                                <th>Teléfono</th>
+                                                <td>{{clinica.telefono}}</td>
+                                            </tr>
+                                        </table>
+                                    </td>
                                     <td>
                                         <img width="150" :src="'img/' + clinica.imagen" :alt="clinica.nombre">
                                     </td>
                                     <td>
-                                        <!-- Botón para editar la clinica -->
-                                        <a class="btn btn-primary"
-                                            :href="'clinica-update.html?id='+ clinica.id">Editar</a>
-                                        <!-- Botón para eliminar el producto -->
-                                        <button type="button" class="btn btn-danger"
-                                            v-on:click="eliminar(clinica.id)">Eliminar</button>
+                                        <div class="action-container">
+                                            <!-- Botón para editar la clinica -->
+                                            <a class="bot-sec" :href="'clinica-update.html?id='+ clinica.id">Editar</a>
+                                            <a class="bot-sec" id="rates" :href="'ratings.html?id_clinica='+ clinica.id">Ver ratings</a>
+                                            <!-- Botón para eliminar el producto -->
+                                            <button type="button" class="killer" v-on:click="eliminar(clinica.id)">Eliminar</button>
+                                        </div>
                                     </td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
-                </section>
+                </template>
             </div>
         </div>
     </main>
-    <footer id="footer-index" class="footer">
-        <custom-footer></custom-footer>
-    </footer>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script><!--Enlace de VUE-->
-    <script src="./js/clinicas.js"></script>
+    <footer id="footer-index" class="footer"></footer>
 </body>

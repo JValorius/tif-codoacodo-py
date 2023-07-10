@@ -1,8 +1,101 @@
 @import "sitewrap.css";
 
+body {
+    display: flex;
+    align-items: center;
+}
+
 .edicion-elemento {
-    background-color: var(--col-sec-cl);
-    margin:10px auto;
+    border: .1em solid var(--col-sec-md);
+    margin: 10px auto;
     width: 400px;
     padding: 20px;
+}
+
+.r1 {
+    display: flex;
+    align-items: baseline;
+    margin: .4rem 0;
+}
+
+.p1 {
+    flex: 1 0 auto;
+}
+
+.p2 {
+    flex: 2 0 auto;
+}
+
+.form-control {
+    outline: none;
+    width: 90%;
+	padding: .375rem .75rem;
+	font-size: 1rem;
+	font-weight: 400;
+	line-height: 1.5;
+	color: var(--col-txt);
+	background-color: var(--col-pri);
+	background-clip: padding-box;
+	border: 1px solid var(--col-lig);
+	-webkit-appearance: none;
+	-moz-appearance: none;
+	appearance: none;
+	transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+}
+
+.form-control:focus {
+	border: 1px solid var(--col-sec-md);
+}
+
+.img-container {
+    display: flex;
+    align-items: center;
+}
+
+img {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.action-container {
+    display: flex;
+    align-items: stretch;
+    flex-direction: column;
+}
+
+.bot-princ {
+	height: 38px;
+	background-color: var(--col-sec-md);
+	border: none;
+	color: var(--col-pri);
+	padding: 0 1em;
+	margin: .2em 1em;
+	text-align: center;
+	text-decoration: none;
+	font-size: 16px;
+	transition-duration: 0.4s;
+}
+
+.bot-princ:hover {
+	background-color: var(--col-sec-cl);
+	color: var(--col-txt);
+}
+
+.bot-canc {
+	height: 38px;
+	background-color: var(--col-ter-md);
+	border: none;
+	color: var(--col-pri);
+	padding: 0 1em;
+	margin: .2em 1em;
+	text-align: center;
+	text-decoration: none;
+	font-size: 16px;
+	transition-duration: 0.4s;
+}
+
+.bot-canc:hover {
+	background-color: var(--col-ter-cl);
+	color: var(--col-txt);
 }

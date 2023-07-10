@@ -14,6 +14,7 @@ body > * {
 header {
     display: flex;
     align-items: stretch;
+    border-bottom: 3px solid var(--col-sec-md);
 }
 
 footer {
@@ -26,7 +27,8 @@ footer {
 /* Clases */
 .branding-sitio {
     display: flex;
-    flex-flow: column;
+    flex-flow: row;
+    justify-content: center;
 }
 
 .descripcion-sitio {
@@ -37,11 +39,20 @@ footer {
     font-size: .9em;
 }
 
+.descripcion-container {
+    font-size: 1.5em;
+    margin-left: .5em;
+    margin-top: .25em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .bottom-logo {
     flex: 1;
     display: flex;
     align-items: center;
-    justify-content: right;
+    align-items: stretch;
 }
 
 .info-sitio {
@@ -81,7 +92,7 @@ footer {
     flex-grow: 4;
     display: flex;
     flex-flow: row wrap;
-    align-items: center;
+    
     justify-content: flex-end;
 }
 
@@ -96,7 +107,7 @@ footer {
 }
 
 #menu-principal a.actual {
-    background: var(--col-ter-md);
+    background: var(--col-sec-md);
     color: var(--col-pri);
 }
 
@@ -111,6 +122,13 @@ footer {
 
 #menu-principal .hamburguesa {
     display: none;
+}
+
+#titulo-accion {
+    display: flex;
+    flex-flow: row;
+    align-items: center;
+    justify-content: flex-start;
 }
 
 /*Puntos de corte*/

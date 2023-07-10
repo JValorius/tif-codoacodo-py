@@ -10,14 +10,17 @@ Marshmallow: Es una biblioteca de serialización/deserialización de objetos Pyt
 Al importar estos módulos y clases, estamos preparando nuestro entorno de desarrollo para utilizar las funcionalidades que ofrecen.
 
 '''
+import typing as t
+import sqlalchemy as sa
+import sqlalchemy.orm as sa_orm
 # Importa las clases Flask, jsonify y request del módulo flask
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, abort
 # Importa la clase CORS del módulo flask_cors
 from flask_cors import CORS
 # Importa la clase SQLAlchemy del módulo flask_sqlalchemy
 from flask_sqlalchemy import SQLAlchemy
-# Importa las clases select y func del módulo sqlalchemy.sql, que serán necesarias para realizar queries avanzadas
-from sqlalchemy.sql import select, func, text
+# Importa las clases Pagination y SelectPagination del módulo flask_sqlalchemy. Utilizado para crear children de SQLAlchemy y SelectPagination
+from flask_sqlalchemy.pagination import Pagination, SelectPagination
 # Importa la clase Marshmallow del módulo flask_marshmallow
 from flask_marshmallow import Marshmallow
 from flask_marshmallow.fields import fields
@@ -34,6 +37,7 @@ CORS(app): Se utiliza el módulo CORS para habilitar el acceso cruzado entre dom
 '''
 # Crea una instancia de la clase Flask con el nombre de la aplicación
 app = Flask(__name__)
+app.config ['JSON_SORT_KEYS'] = False
 # Configura CORS para permitir el acceso desde el frontend al backend
 CORS(app)
 
@@ -47,34 +51,71 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"]: Se configura el seguimiento de mod
 db = SQLAlchemy(app): Se crea un objeto db de la clase SQLAlchemy, que se utilizará para interactuar con la base de datos. Este objeto proporciona métodos y funcionalidades para realizar consultas y operaciones en la base de datos.
 
 ma = Marshmallow(app): Se crea un objeto ma de la clase Marshmallow, que se utilizará para serializar y deserializar objetos Python a JSON y viceversa. Marshmallow proporciona una forma sencilla de definir esquemas de datos y validar la entrada y salida de datos en la aplicación. Este objeto se utilizará para definir los esquemas de los modelos de datos en la aplicación.
-
 '''
+
+#=========================================================================================================================================
+# FUNCIONES Y CLASES PERSONALIZADAS
+#=========================================================================================================================================
+# Clase AltSelect, opera como SelectPagination, con la excepción que devuelve una query en forma de tuplas en lugar de escalares (necesario debido a que scalars() no opera bien sobre compound selects (como la query que realizamos en get_Clinicas_Rated))
+class AltSelect(SelectPagination):
+    def _query_items(self) -> list[t.Any]:
+        select = self._query_args["select"]
+        select = select.limit(self.per_page).offset(self._query_offset)
+        session = self._query_args["session"]
+        return list(session.execute(select))
+    
+    def _query_count(self) -> int:
+        select = self._query_args["select"]
+        sub = select.options(sa_orm.lazyload("*")).order_by(None).subquery()
+        session = self._query_args["session"]
+        out = session.execute(sa.select(sa.func.count()).select_from(sub))
+        return out  # type: ignore[no-any-return]
+
+# Clase AltSQLAlch, añade el método paginate_tuples, que funciona de igual forma que paginate, excepto que implementa AltSelect en lugar de SelectPagination. Nuestra forma de acceder a la paginación alternativa.
+class AltSQLAlch (SQLAlchemy):
+    def paginate_tuples(
+        self,
+        select: sa.sql.Select[t.Any],
+        *,
+        page: int | None = None,
+        per_page: int | None = None,
+        max_per_page: int | None = None,
+        error_out: bool = True,
+        count: bool = True,
+    ) -> Pagination:
+        return AltSelect(
+            select=select,
+            session=self.session(),
+            page=page,
+            per_page=per_page,
+            max_per_page=max_per_page,
+            error_out=error_out,
+            count=count,
+        )
+
+
 # Configura la URI de la base de datos con el driver de MySQL, usuario, contraseña y nombre de la base de datos
-# URI de la BD == Driver de la BD://user:password@UrlBD/nombreBD
+# URI de la BD == Driver de la BD://Usuario:password@UrlBD/nombreBD
 # app.config["SQLALCHEMY_DATABASE_URI"] = "mysql+pymysql://root:root@localhost/proyecto"
 app.config["SQLALCHEMY_DATABASE_URI"] = "mysql+pymysql://root:@localhost/proyecto"
 # Configura el seguimiento de modificaciones de SQLAlchemy a False para mejorar el rendimiento
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 # Crea una instancia de la clase SQLAlchemy y la asigna al objeto db para interactuar con la base de datos
-db = SQLAlchemy(app)
+db = AltSQLAlch(app)
 # Crea una instancia de la clase Marshmallow y la asigna al objeto ma para trabajar con serialización y deserialización de datos
 ma = Marshmallow(app)
 
-
+#=========================================================================================================================================
 # CLASES DE SOPORTE (ENUM)
+#=========================================================================================================================================
+class FnEnum(str, enum.Enum): #Enumerador para los tres tipos de financiamiento de una clínica
+    publico: str = "publico"
+    privado: str = "privado"
+    mixto: str = "mixto"
 
-class FnEnum(enum.Enum): #Enumerador para los tres tipos de financiamiento de una clínica
-    publico = 1
-    privado = 2
-    mixto = 3
-
-class RtEnum(enum.Enum): #Enumerador para los tres tipos de rating
-    instalaciones = 1
-    medicos = 2
-    servicio = 3
-
+#=========================================================================================================================================
 # TABLAS DE LA DB DEL PROYECTO
-
+#=========================================================================================================================================
 class Clinica(db.Model):  # Clase para tabla de Clínicas
 
     id = db.Column(db.Integer, primary_key=True)
@@ -108,31 +149,17 @@ class Clinica(db.Model):  # Clase para tabla de Clínicas
         self.website = website
         self.telefono = telefono
         self.imagen = imagen
-    '''
-    Habilita la realización de la siguiente query:
-    #  SELECT AVG(ratings.valor)
-    #  FROM ratings
-    #  WHERE ratings.id_clinica = <clinica> AND ratings.tipo = <tipo_rating>
-    #  Devuelve un escalar igual al promedio de ratings del tipo <tipo_rating>
-    '''
-    '''
-    @property
-    def ratings_promedio(self):
-        query = select([func.avg(Rating.valor)]).where(Rating.id_clinica == self.id).group_by(Rating.tipo)
-        results = db.session.execute(query).fetchall()
-        return results
-    '''
 
-class User(db.Model):  # Clase para tabla de Usuarios
+class Usuario(db.Model):  # Clase para tabla de Usuarios
 
     id = db.Column(db.Integer, primary_key=True)
     handle = db.Column(db.String(20), unique= True, nullable=False)
     pwd = db.Column(db.String(20))
-    ratings = db.relationship("Rating", backref='user', cascade="all, delete-orphan", lazy=True)
+    ratings = db.relationship("Rating", backref='usuario', cascade="all, delete-orphan", lazy=True)
 
     def __init__(self, handle, pwd):
         """
-        Constructor de la clase User.
+        Constructor de la clase Usuario.
 
         Args:
             handle (str): Nombre de usuario
@@ -146,20 +173,20 @@ class User(db.Model):  # Clase para tabla de Usuarios
 class Rating(db.Model):  # Clase para tabla de Ratings
 
     id = db.Column(db.Integer, primary_key=True)
-    tipo = db.Column(db.Enum(RtEnum), nullable=False)
+    tipo = db.Column(db.String(20), nullable=False)
     valor = db.column_property(db.Column(db.Integer, db.CheckConstraint('valor >= 1 AND valor <= 5'), nullable=False))
     id_clinica = db.Column(db.Integer, db.ForeignKey('clinica.id'), nullable=False)
-    id_user = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    id_user = db.Column(db.Integer, db.ForeignKey('usuario.id'), nullable=False)
 
     def __init__(self, tipo, valor, id_clinica, id_user):
         """
         Constructor de la clase Rating.
 
         Args:
-            tipo (Enum): Registra el tipo de rating. Acepta tres valores: instalaciones, medicos, o servicio
+            tipo (str): Registra el tipo de rating. Acepta tres valores: instalaciones, medicos, o servicio
             valor (int): Puntaje del tipo de rating. Utiliza constraints para limitar el valor entre 1 y 5 desde el DB management (redundancia)
             id_clinica (int): Clave foránea que vincula Rating con Clinica
-            id_user (int): Clave foránea que vincula Rating con User
+            id_user (int): Clave foránea que vincula Rating con Usuario
         """
         self.tipo = tipo
         self.valor = valor
@@ -169,34 +196,72 @@ class Rating(db.Model):  # Clase para tabla de Ratings
 with app.app_context():
     db.create_all()  # Crea todas las tablas en la base de datos
 
-
+#=========================================================================================================================================
 # DEFINICIONES DE SCHEMAS
-
-class UserSchema(ma.Schema):
+#=========================================================================================================================================
+class UsuarioSchema(ma.Schema):
     """
-    Esquema de la clase User.
+    Esquema de la clase Usuario.
 
-    Este esquema define los campos que serán serializados/deserializados para la clase User.
+    Este esquema define los campos que serán serializados/deserializados para la clase Usuario.
     """
     class Meta:
+        ordered = True
         fields = ("id", "handle")
         dump_only = ("id",)
+        include_fk = False # Ignorar las foreign keys en esta versión de la app
 
+usuario_schema = UsuarioSchema()  # Objeto para serializar/deserializar un usuario
+usuarios_schema = UsuarioSchema(many=True)  # Objeto para serializar/deserializar múltiples usuarios
+        
 class ClinicaSchema(ma.Schema):
     """
-    Esquema de la clase Clinica.
+    Esquema de la clase Clinica, construido para calcular ratings promedio desde el schema.
 
-    Este esquema define los campos que serán serializados/deserializados para la clase Clinica.
+    Este esquema define los campos que serán serializados/deserializados para la clase Clinica, con ratings promedio anexados.
+    """
+    class Meta:
+        ordered = True
+        fields = ("id", "nombre", "financ", "direccion", "localidad", "telefono", "website", "imagen", "avg_ratings")
+        dump_only = ("id",)
+    
+    avg_ratings = fields.Method("get_ratings_promedio")
+
+    # Método para calcular los ratogs promedio. Itera sobre los objetos anidados, permitiendo agregarlos en un campo independiente.
+    def get_ratings_promedio(self, clinica):
+        if clinica.ratings:
+            insta = []
+            medic = []
+            servi = []
+            for rating in clinica.ratings:
+                if rating.tipo == "instalaciones":
+                    insta.append(rating.valor)
+                if rating.tipo == "medicos":
+                    medic.append(rating.valor)
+                if rating.tipo == "medicos":
+                    servi.append(rating.valor)
+            prom_inst = sum(insta) / len(insta)
+            prom_medi = sum(medic) / len(medic)
+            prom_serv = sum(servi) / len(servi)
+            return {"promedio_inst": prom_inst, "promedio_medi": prom_medi, "promedio_serv": prom_serv}
+        return 0
+    
+clinica_schema = ClinicaSchema()  # Objeto para serializar/deserializar una clinica
+clinicas_schema = ClinicaSchema(many=True)  # Objeto para serializar/deserializar múltiples ratings
+
+class ClinicaAltSchema(ma.Schema):
+    """
+    Esquema de la clase Clinica, construido para tomar valores de ratings promedio de una query en endpoint.
+
+    Este esquema define los campos que serán serializados/deserializados para la clase Clinica, con ratings promedio anexados.
     """
     class Meta:
         fields = ("id", "nombre", "financ", "direccion", "localidad", "telefono", "website", "imagen", "promedio_inst", "promedio_medi", "promedio_serv")
         dump_only = ("id",)
-        include_fk = False
-    
-   # avg_ratings = fields.Method("get_ratings_promedio")
 
-    
-    
+clinica_rating_schema = ClinicaAltSchema()  # Objeto para serializar/deserializar un rating
+clinicas_rating_schema = ClinicaAltSchema(many=True)  # Objeto para serializar/deserializar múltiples ratings
+
 class RatingSchema(ma.Schema):
     """
     Esquema de la clase Rating.
@@ -204,78 +269,103 @@ class RatingSchema(ma.Schema):
     Este esquema define los campos que serán serializados/deserializados para la clase Rating.
     """
     class Meta:
-        dump_only = ("id","tipo","puntaje","id_clinica","nom_clinica","id_user", "nom_user")
-
+        ordered = True
+        fields = ("id","tipo","valor","id_clinica","id_user", "clinica", "usuario")
+        dump_only = ("id","id_clinica","id_user", "clinica", "usuario")
     
-
-UserSchema.ratings = fields.Nested(RatingSchema, many=True)
-ClinicaSchema.ratings = fields.Nested(RatingSchema, many=True)
-
-user_schema = UserSchema()  # Objeto para serializar/deserializar un usuario
-users_schema = UserSchema(many=True)  # Objeto para serializar/deserializar múltiples usuarios
+    clinica = ma.Nested(ClinicaSchema)
+    usuario = ma.Nested(UsuarioSchema)
 
 rating_schema = RatingSchema()  # Objeto para serializar/deserializar un rating
 ratings_schema = RatingSchema(many=True)  # Objeto para serializar/deserializar múltiples ratings
 
-clinica_schema = ClinicaSchema()  # Objeto para serializar/deserializar un rating
-clinicas_schema = ClinicaSchema(many=True)  # Objeto para serializar/deserializar múltiples ratings
-
-
+#=========================================================================================================================================
 # ENDPOINDS DE LA DB DEL PROYECTO
-
+#=========================================================================================================================================
 #Endpoints para obtener listados de elementos
+@app.route("/clinicas_rated", methods=["GET"])
+def get_Clinicas_Rated():
+    """
+    Endpoint para obtener todas las clínicas de la base de datos, con sus promedios de ratings a través de una única query. Más eficiente que calcularlos desde el schema. LEGACY: Conservada para futuras referencias
+
+    Retorna un JSON paginado de registros de la tabla clínicas.
+    """
+    pagina = request.args.get('page', default=None, type=int)
+
+    """Ejecutar la siguiente query:
+    SELECT clinica.*,
+    AVG(CASE WHEN rating.tipo = 'instalaciones' THEN CAST(rating.valor AS FLOAT) END) AS promedio_inst,
+    AVG(CASE WHEN rating.tipo = 'medicos' THEN CAST(rating.valor AS FLOAT) END) AS promedio_medi,
+    AVG(CASE WHEN rating.tipo = 'servicio' THEN CAST(rating.valor AS FLOAT) END) AS promedio_serv
+    FROM clinica
+    LEFT JOIN rating ON clinica.id = rating.id_clinica
+    GROUP BY clinica.id;
+    """
+    prom_inst = db.func.avg(db.case((Rating.tipo == 'instalaciones', db.cast(Rating.valor, db.Float)))).label('promedio_inst')
+    prom_medi = db.func.avg(db.case((Rating.tipo == 'medicos', db.cast(Rating.valor, db.Float)))).label('promedio_medi')
+    prom_serv = db.func.avg(db.case((Rating.tipo == 'servicio', db.cast(Rating.valor, db.Float)))).label('promedio_serv')
+    cl_query = db.select(Clinica, prom_inst, prom_medi, prom_serv).select_from(Clinica).outerjoin(Rating, Clinica.id == Rating.id_clinica).group_by(Clinica.id)
+
+    list_clinicas = db.paginate_tuples(cl_query)
+    
+    formatted_result = []
+    for item in list_clinicas:
+        # Extraer los atributos deseados
+        clinica_data = {
+            'id': item[0].id,
+            'nombre': item[0].nombre,
+            'financ': item[0].financ,
+            'direccion': item[0].direccion,
+            'localidad': item[0].localidad,
+            'website': item[0].website,
+            'telefono': item[0].telefono,
+            'imagen': item[0].imagen,
+            # Extraer el resto de los atributos de las tuplas
+            'promedio_inst': item[1],
+            'promedio_medi': item[2],
+            'promedio_serv': item[3]
+        }
+
+        formatted_result.append(clinica_data)
+
+    result = clinicas_rating_schema.dump(formatted_result)  # Serializa los registros en formato JSON
+    return jsonify(result)  # Retorna el JSON de todos los registros de la tabla
+
 @app.route("/clinicas", methods=["GET"])
 def get_Clinicas():
     """
     Endpoint para obtener todas las clínicas de la base de datos.
 
-    Retorna un JSON con todos los registros de la tabla de clínicas, o con una página si se solicita un resultado paginado.
+    Retorna un JSON con un resultado paginado de registros, o con la tabla completa si se establece el parámetro pagina como 0
     """
-    pag = request.args.get('pag', default=1, type=int)
-    por_pag = request.args.get('por_pag', default=None, type=int)
+    # pagina = request.args.get('page', default=None, type=int)
     
-    # query = select([func.avg(Rating.valor)]).where(Rating.id_clinica == Clinica.id).group_by(Rating.tipo)
-    query = text("""
-            SELECT clinica.*,
-            AVG(CASE WHEN rating.tipo = 'instalaciones' THEN CAST(rating.valor AS FLOAT) END) AS promedio_inst,
-            AVG(CASE WHEN rating.tipo = 'medicos' THEN CAST(rating.valor AS FLOAT) END) AS promedio_medi,
-            AVG(CASE WHEN rating.tipo = 'servicio' THEN CAST(rating.valor AS FLOAT) END) AS promedio_serv
-            FROM clinica
-            LEFT JOIN rating ON clinica.id = rating.id_clinica
-            GROUP BY clinica.id;
-            """)
-
-    print(query)
-    if por_pag is None:
-        #  Obtiene todos los registros de la tabla clínicas si no se definió un parámetro de resultados por página
-        list_clinicas = db.session.execute(query)
-        print(list_clinicas)
-    else:
+    # if pagina == 0:
+        #  Obtiene todos los registros de la tabla clinicas si el parámetro page es igual a 0
+    list_clinicas = db.session.execute(db.select(Clinica).order_by(Clinica.nombre)).scalars()
+    # else:
         #  Si se definió un parámetro de resultados por página, pagina los resultados
-        list_clinicas = db.paginate(query, pag, por_pag)
-
+        # list_clinicas = db.paginate(db.select(Clinica))
     result = clinicas_schema.dump(list_clinicas)  # Serializa los registros en formato JSON
-    print(result)
     return jsonify(result)  # Retorna el JSON de todos los registros de la tabla
 
-@app.route("/users", methods=["GET"])
-def get_Users():
+@app.route("/usuarios", methods=["GET"])
+def get_Usuarios():
     """
     Endpoint para obtener todos los usuarios de la base de datos.
 
-    Retorna un JSON con todos los registros de la tabla de usuarios, o con una página si se solicita un resultado paginado.
+    Retorna un JSON con un resultado paginado de registros, o con la tabla completa si se establece el parámetro pagina como 0
     """
-    pag = request.args.get('pag', default=1, type=int)
-    por_pag = request.args.get('por_pag', default=None, type=int)
+    # pagina = request.args.get('page', default=None, type=int)
     
-    if por_pag is None:
-        #  Obtiene todos los registros de la tabla usuarios si no se definió un parámetro de resultados por página
-        list_users = db.session.execute(db.select(User))
-    else:
+    #if pagina == 0:
+        #  Obtiene todos los registros de la tabla usuarios si el parámetro page es igual a 0
+    list_usuarios = db.session.execute(db.select(Usuario)).scalars()
+    #else:
         #  Si se definió un parámetro de resultados por página, pagina los resultados
-        list_users = db.paginate(db.select(User), pag, por_pag)
+    #    list_usuarios = db.paginate(db.select(Usuario))
 
-    result = users_schema.dump(list_users)  # Serializa los registros en formato JSON
+    result = usuarios_schema.dump(list_usuarios)  # Serializa los registros en formato JSON
     return jsonify(result)  # Retorna el JSON de todos los registros de la tabla
 
 @app.route("/ratings", methods=["GET"])
@@ -283,32 +373,21 @@ def get_Ratings():
     """
     Endpoint para obtener todos los ratings de la base de datos.
 
-    Retorna un JSON con todos los registros de la tabla de ratings, o con una página si se solicita un resultado paginado.
+    Retorna un JSON con un resultado paginado de registros, o con la tabla completa si se establece el parámetro pagina como 0
     """
-    pag = request.args.get('pag', default=1, type=int)
-    por_pag = request.args.get('por_pag', default=None, type=int)
-    
-    if por_pag is None:
-        #  Obtiene todos los registros de la tabla usuarios si no se definió un parámetro de resultados por página
-        list_ratings = db.session.execute(db.select(Rating))
-    else:
+    # pagina = request.args.get('page', default=None, type=int)
+
+    # if pagina == 0:
+        #  Obtiene todos los registros de la tabla clinicas si el parámetro page es igual a 0
+    list_ratings = db.session.execute(db.select(Rating).order_by(Rating.id_clinica, Rating.tipo)).scalars()
+    #else:
         #  Si se definió un parámetro de resultados por página, pagina los resultados
-        list_ratings = db.paginate(db.select(Rating), pag, por_pag)
-
-    for rating in list_ratings:
-        #  Busca el handle de usuario y el nombre de clínica para los ID correspondientes, y los agrega a los datos devueltos por el JSON
-        id_user = rating['id_user']
-        id_clinica = rating['id_clinica']
-        user_handle = db.session.execute(db.select(User.c.handle).filter_by(id_user=id_user))
-        nombre_clinica = db.session.execute(db.select(Clinica.c.nombre).filter_by(id_clinica=id_clinica))
-        
-        rating.user_handle = user_handle
-        rating.nombre_clinica = nombre_clinica
-
+    #    list_ratings = db.paginate(db.select(Rating))
 
     result = ratings_schema.dump(list_ratings)  # Serializa los registros en formato JSON
     return jsonify(result)  # Retorna el JSON de todos los registros de la tabla
 
+#=========================================================================================================================================
 """
 Endpoints para cargar elementos en masa en la base de datos (por ejemplo, cargando un archivo JSON desde el FrontEnd)
 
@@ -317,6 +396,7 @@ Retorna un JSON con la lista de registros actualizada.
 
 Para esta función aplico métodos más concisos que en las funciones "create_<elemento>", que utilizan request.json para explicitar
 los parámetros a recibir.
+"""
 """
 @app.route("/clinicas", methods=["POST"])
 def create_Clinicas():
@@ -372,9 +452,9 @@ def create_Ratings():
         #  Remueve el ID, si existe, para evitar conflictos
         rating.pop(id, None)
         
-        id_user = rating['id_user']
-        id_clinica = rating['id_clinica']
-        tipo = rating['tipo']
+        nw_id_user = rating['id_user']
+        nw_id_clinica = rating['id_clinica']
+        nw_tipo = rating['tipo']
         '''
         Realiza la siguiente query:
         #  SELECT *
@@ -383,10 +463,10 @@ def create_Ratings():
         #  LIMIT 1
         #  Devuelve UN registro con las condiciones especificadas, si existe.
         '''
-        rating_duplicado = db.session.execute(db.select(Rating).filter_by(tipo=tipo, id_user=id_user, id_clinica=id_clinica).first())
+        rating_duplicado = db.session.execute(db.select(Rating).filter_by(tipo=nw_tipo, id_user=nw_id_user, id_clinica=nw_id_clinica).first())
         #  Si existe el registro, saltear el paso de añadirlo a la carga de la DB, salvo que el ID de usuario sea 1,
         #  porque podemos usarlo para carga masiva sin afectar usuarios reales. 
-        if rating_duplicado and id_user != 1:
+        if rating_duplicado and nw_id_user != 1:
             continue
 
         new_rating = Rating(**rating)
@@ -395,8 +475,9 @@ def create_Ratings():
     db.session.add_all(ratings)  # Agrega la lista de ratings a la sesión de la base de datos
     db.session.commit()  # Guarda los cambios en la base de datos
     return ratings_schema.jsonify(ratings)  # Retorna el JSON de la lista de ratings actualizada
+"""
 
-
+#=========================================================================================================================================
 '''
 Otros Endpoints de las APIs de gestión:
 get_<elemento>(id):
@@ -415,6 +496,7 @@ update_<elemento>(id):
     # Retorna un JSON con el elemento actualizad
 
 '''
+#=========================================================================================================================================
 # Endpoints de CLÍNICAS:
 @app.route("/clinicas/<id>", methods=["GET"])
 def get_clinica(id):
@@ -423,7 +505,12 @@ def get_clinica(id):
 
     Retorna un JSON con la información de la clínica correspondiente al ID proporcionado
     """
-    clinica = db.get_or_404(Clinica, id, "No se encontró el ID indicado")  # Obtiene la clínica correspondiente al ID recibido
+    """
+    Endpoint para obtener todas las clínicas de la base de datos.
+
+    Retorna un JSON con todos los registros de la tabla de clínicas, o con una página si se solicita un resultado paginado.
+    """
+    clinica = db.get_or_404(Clinica, id, description=f"No se encontró el objeto con id '{id}' en la base de datos.") # Obtiene la clínica correspondiente al ID recibido. Devuelve mensaje personalizado 404 si no se encuentra.
     return clinica_schema.jsonify(clinica)  # Retorna el JSON de la clínica
 
 @app.route("/clinicas/<id>", methods=["DELETE"])
@@ -433,7 +520,7 @@ def delete_clinica(id):
 
     Elimina la clinica correspondiente al ID proporcionado y retorna un JSON con el registro eliminado.
     """
-    clinica = db.get_or_404(Clinica, id, "No se encontró el ID indicado")  # Obtiene la clinica correspondiente al ID recibido
+    clinica = db.get_or_404(Clinica, id, description=f"No se encontró el objeto con id '{id}' en la base de datos.") # Obtiene la clinica correspondiente al ID recibido
     db.session.delete(clinica)  # Elimina la clinica de la sesión de la base de datos
     db.session.commit()  # Guarda los cambios en la base de datos
     return clinica_schema.jsonify(clinica)  # Retorna el JSON de la clínica eliminada
@@ -456,6 +543,7 @@ def create_clinica():
     imagen = request.json["imagen"]        # Obtiene la imagen de la clínica del JSON proporcionado
 
     new_clinica = Clinica(nombre, financ, direccion, localidad, telefono, website, imagen)  # Crea un objeto Clinica con los datos proporcionados
+
     db.session.add(new_clinica)  # Agrega la nueva clinica a la sesión de la base de datos
     db.session.commit()  # Guarda los cambios en la base de datos
     return clinica_schema.jsonify(new_clinica)  # Retorna el JSON de la nueva clínica creada
@@ -468,7 +556,7 @@ def update_clinica(id):
     Lee los datos proporcionados en formato JSON por el cliente y actualiza el registro de la clínica con el ID especificado.
     Retorna un JSON con la clínica actualizada.
     """
-    clinica = db.get_or_404(Clinica, id, "No se encontró el ID indicado")  # Obtiene la clínica existente con el ID especificado
+    clinica = db.get_or_404(Clinica, id, description=f"No se encontró el objeto con id '{id}' en la base de datos.")  # Obtiene la clínica existente con el ID especificado
 
     # Actualiza los atributos de la clínica con los datos proporcionados en el JSON
     clinica.nombre = request.json["nombre"]
@@ -482,7 +570,20 @@ def update_clinica(id):
     db.session.commit()  # Guarda los cambios en la base de datos
     return clinica_schema.jsonify(clinica)  # Retorna el JSON de la clínica actualizada
 
+@app.route("/clinicas/filter", methods=["GET"])  # Endpoint para filtrar clínicas por nombre
+def filtrar_clinica():
+    # extrae el término de búsqueda de los argumentos de la query
+    texto = request.args.get('term', default=None, type=str)
 
+    filt_query = db.select(Clinica).filter(Clinica.nombre.ilike(f'%{texto}%'))
+    filtro_clinicas = db.session.execute(filt_query).scalars()
+    result = clinicas_schema.dump(filtro_clinicas)
+    if result:
+        return jsonify(result)
+    else:
+        abort(404, description="No se ha encontrado ninguna clínica que contenga los términos ingresados")
+
+#=========================================================================================================================================
 # Endpoints de RATINGS:
 @app.route("/ratings/<id>", methods=["GET"])
 def get_rating(id):
@@ -491,16 +592,8 @@ def get_rating(id):
 
     Retorna un JSON con la información del rating correspondiente al ID proporcionado
     """
-    rating = db.get_or_404(Rating, id, "No se encontró el ID indicado")  # Obtiene el rating correspondiente al ID recibido
+    rating = db.get_or_404(Rating, id, description=f"No se encontró el objeto con id '{id}' en la base de datos.")  # Obtiene el rating correspondiente al ID recibido
     #  Busca el handle de usuario y el nombre de clínica para los ID correspondientes, y los agrega a los datos devueltos por el JSON
-    id_user = rating['id_user']
-    id_clinica = rating['id_clinica']
-    user_handle = db.session.execute(db.select(User.c.handle).filter_by(id_user=id_user))
-    nombre_clinica = db.session.execute(db.select(Clinica.c.nombre).filter_by(id_clinica=id_clinica))
-        
-    rating.user_handle = user_handle
-    rating.nombre_clinica = nombre_clinica
-
     return rating_schema.jsonify(rating)  # Retorna el JSON del rating
 
 @app.route("/ratings/<id>", methods=["DELETE"])
@@ -510,7 +603,7 @@ def delete_rating(id):
 
     Elimina el rating correspondiente al ID proporcionado y retorna un JSON con el registro eliminado.
     """
-    rating = db.get_or_404(Rating, id, "No se encontró el ID indicado")  # Obtiene el rating correspondiente al ID recibido
+    rating = db.get_or_404(Rating, id, description=f"No se encontró el objeto con id '{id}' en la base de datos.")  # Obtiene el rating correspondiente al ID recibido
     db.session.delete(rating)  # Elimina el rating de la sesión de la base de datos
     db.session.commit()  # Guarda los cambios en la base de datos
     return rating_schema.jsonify(rating)  # Retorna el JSON del rating eliminado
@@ -541,7 +634,7 @@ def update_rating(id):
     Lee los datos proporcionados en formato JSON por el cliente y actualiza el registro del rating con el ID especificado.
     Retorna un JSON con el rating actualizado.
     """
-    rating = db.get_or_404(Rating, id, "No se encontró el ID indicado")  # Obtiene el rating existente con el ID especificado
+    rating = db.get_or_404(Rating, id, description=f"No se encontró el objeto con id '{id}' en la base de datos.")  # Obtiene el rating existente con el ID especificado
 
     # Actualiza los atributos del rating con los datos proporcionados en el JSON
     rating.tipo = request.json["tipo"]
@@ -552,32 +645,44 @@ def update_rating(id):
     db.session.commit()  # Guarda los cambios en la base de datos
     return rating_schema.jsonify(rating)  # Retorna el JSON del rating actualizado
 
+@app.route("/ratings/filter", methods=["GET"])  # Endpoint para filtrar clínicas por nombre
+def filtrar_ratings():
+    # extrae el término de búsqueda de los argumentos de la query
+    ident = request.args.get('id_clinica', default=None, type=int)
+    filt_query = db.select(Rating).where(Rating.id_clinica == ident)
+    filtro_ratings = db.session.execute(filt_query).scalars()
+    result = ratings_schema.dump(filtro_ratings)
+    if result:
+        return jsonify(result)
+    else:
+        abort(404, description="No se ha encontrado ningún rating que contenga los términos ingresados")
 
+#=========================================================================================================================================
 # Endpoints de USUARIOS:
-@app.route("/users/<id>", methods=["GET"])
-def get_users(id):
+@app.route("/usuarios/<id>", methods=["GET"])
+def get_usuarios(id):
     """
     Endpoint para obtener un usuario específico de la base de datos.
 
     Retorna un JSON con la información del usuario correspondiente al ID proporcionado
     """
-    user = db.get_or_404(User, id, "No se encontró el ID indicado")  # Obtiene el usuario correspondiente al ID recibido
-    return user_schema.jsonify(user)  # Retorna el JSON del usuario
+    usuario = db.get_or_404(Usuario, id, description=f"No se encontró el objeto con id '{id}' en la base de datos.")  # Obtiene el usuario correspondiente al ID recibido
+    return usuario_schema.jsonify(usuario)  # Retorna el JSON del usuario
 
-@app.route("/users/<id>", methods=["DELETE"])
-def delete_user(id):
+@app.route("/usuarios/<id>", methods=["DELETE"])
+def delete_usuario(id):
     """
     Endpoint para eliminar un usuario de la base de datos.
 
     Elimina el usuario correspondiente al ID proporcionado y retorna un JSON con el registro eliminado.
     """
-    user = db.get_or_404(User, id, "No se encontró el ID indicado")   # Obtiene el usuario correspondiente al ID recibido
-    db.session.delete(user)  # Elimina el usuario de la sesión de la base de datos
+    usuario = db.get_or_404(Usuario, id, description=f"No se encontró el objeto con id '{id}' en la base de datos.")   # Obtiene el usuario correspondiente al ID recibido
+    db.session.delete(usuario)  # Elimina el usuario de la sesión de la base de datos
     db.session.commit()  # Guarda los cambios en la base de datos
-    return user_schema.jsonify(user)  # Retorna el JSON del usuario eliminado
+    return usuario_schema.jsonify(usuario)  # Retorna el JSON del usuario eliminado
 
-@app.route("/users", methods=["POST"])  # Endpoint para crear una clinica
-def create_user():
+@app.route("/usuarios", methods=["POST"])  # Endpoint para crear una clinica
+def create_usuario():
     """
     Endpoint para crear un nuevo usuario en la base de datos.
 
@@ -586,27 +691,26 @@ def create_user():
     """
     handle = request.json["handle"] # Obtiene el nombre del usuario del JSON proporcionado
 
-
-    new_user = User(handle)  # Crea un nuevo objeto User con los datos proporcionados
-    db.session.add(new_user)  # Agrega el nuevo usuario a la sesión de la base de datos
+    new_usuario = Usuario(handle)  # Crea un nuevo objeto Usuario con los datos proporcionados
+    db.session.add(new_usuario)  # Agrega el nuevo usuario a la sesión de la base de datos
     db.session.commit()  # Guarda los cambios en la base de datos
-    return user_schema.jsonify(new_user)  # Retorna el JSON del nuevo usuario creado
+    return usuario_schema.jsonify(new_usuario)  # Retorna el JSON del nuevo usuario creado
 
-@app.route("/users/<id>", methods=["PUT"])  # Endpoint para actualizar un usuario
-def update_user(id):
+@app.route("/usuarios/<id>", methods=["PUT"])  # Endpoint para actualizar un usuario
+def update_Usuario(id):
     """
     Endpoint para actualizar un usuario existente en la base de datos.
 
     Lee los datos proporcionados en formato JSON por el cliente y actualiza el registro del usuario con el ID especificado.
     Retorna un JSON con el usuario actualizado.
     """
-    user = db.get_or_404(User, id, "No se encontró el ID indicado")   # Obtiene el usuario existente con el ID especificado
+    usuario = db.get_or_404(Usuario, id, description=f"No se encontró el objeto con id '{id}' en la base de datos.") # Obtiene el usuario existente con el ID especificado
 
     # Actualiza los atributos del usuario con los datos proporcionados en el JSON
-    user.handle = request.json["handle"]
+    usuario.handle = request.json["handle"]
 
     db.session.commit()  # Guarda los cambios en la base de datos
-    return user_schema.jsonify(user)  # Retorna el JSON del usuario actualizado
+    return usuario_schema.jsonify(usuario)  # Retorna el JSON del usuario actualizado
 
 '''
 Este código es el programa principal de la aplicación Flask. Se verifica si el archivo actual está siendo ejecutado directamente y no importado como módulo. Luego, se inicia el servidor Flask en el puerto 5000 con el modo de depuración habilitado. Esto permite ejecutar la aplicación y realizar pruebas mientras se muestra información adicional de depuración en caso de errores.
