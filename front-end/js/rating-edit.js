@@ -12,8 +12,8 @@ createApp({
 			valor: 0,
 			id_user: 0,
 			id_clinica: 0,
-			url: 'http://localhost:5000/ratings/' + id,
-			//url: "https://jvalorius.pythonanywhere.com/productos" + id,
+			//url: 'http://localhost:5000/ratings/' + id,
+			url: "https://jvalorius.pythonanywhere.com/ratings/" + id,
 		};
 	},
 	methods: {

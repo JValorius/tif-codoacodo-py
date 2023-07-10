@@ -7,8 +7,8 @@ createApp({
 		 */
 		return {
 			clinicas: [], // Almacena las clínicas obtenidas del backend
-			url: 'http://localhost:5000/clinicas', // URL local
-			// url: "https://jvalorius.pythonanywhere.com/clinicas", // URL del backend donde se encuentran las clinicas
+			//url: 'http://localhost:5000/clinicas', // URL local
+			url: "https://jvalorius.pythonanywhere.com/clinicas", // URL del backend donde se encuentran las clinicas
 			error: false,
 			cargando: true,
 			// Atributos para el almacenar los valores del formulario

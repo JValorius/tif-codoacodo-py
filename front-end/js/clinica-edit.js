@@ -19,8 +19,8 @@ createApp({
 				promedio_medi: 0,
 				promedio_serv: 0
 			  },
-			url: 'http://localhost:5000/clinicas/' + id,
-			//url: "https://jvalorius.pythonanywhere.com/clinicas" + id,
+			//url: 'http://localhost:5000/clinicas/' + id,
+			url: "https://jvalorius.pythonanywhere.com/clinicas/" + id,
 		};
 	},
 	methods: {
