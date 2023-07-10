@@ -238,14 +238,14 @@ class ClinicaSchema(ma.Schema):
                     insta.append(rating.valor)
                 if rating.tipo == "medicos":
                     medic.append(rating.valor)
-                if rating.tipo == "medicos":
+                if rating.tipo == "servicio":
                     servi.append(rating.valor)
             prom_inst = sum(insta) / len(insta)
             prom_medi = sum(medic) / len(medic)
             prom_serv = sum(servi) / len(servi)
             return {"promedio_inst": prom_inst, "promedio_medi": prom_medi, "promedio_serv": prom_serv}
         return 0
-    
+
 clinica_schema = ClinicaSchema()  # Objeto para serializar/deserializar una clinica
 clinicas_schema = ClinicaSchema(many=True)  # Objeto para serializar/deserializar múltiples ratings
 
